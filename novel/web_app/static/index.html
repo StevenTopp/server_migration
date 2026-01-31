@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AI 小说工坊</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        body { background-color: #0f1117; color: #e5e7eb; font-family: -apple-system, system-ui, sans-serif; }
+        .prose { max-width: none; color: #d1d5db; line-height: 1.8; }
+        .glass { background: rgba(30, 32, 40, 0.8); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); }
+        .btn-primary { background: #2563eb; color: white; transition: all 0.2s; }
+        .btn-primary:active { transform: scale(0.95); }
+        .loader { border: 3px solid #374151; border-top: 3px solid #3b82f6; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        /* Modal 动画 */
+        .modal-enter { opacity: 0; transform: scale(0.95); }
+        .modal-enter-active { opacity: 1; transform: scale(1); transition: all 0.2s; }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden">
+
+    <!-- 顶部栏 -->
+    <header class="h-14 flex items-center justify-between px-4 border-b border-gray-800 bg-[#1e2028]">
+        <h1 class="font-bold text-lg bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">Novel Copilot</h1>
+        <div class="flex gap-3">
+            <button onclick="showNewNovel()" class="text-sm bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded-full flex items-center gap-1">
+                <span>✨ 新建</span>
+            </button>
+            <button onclick="toggleConfig()" class="text-gray-400 hover:text-white text-xl">⚙️</button>
+        </div>
+    </header>
+
+    <!-- 新建小说 Modal -->
+    <div id="newNovelModal" class="fixed inset-0 bg-black/80 z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-[#1f2937] w-full max-w-lg rounded-xl p-6 shadow-2xl border border-purple-500/30">
+            <h2 class="text-xl font-bold mb-4 text-white flex items-center gap-2">
+                <span class="text-2xl">📝</span> 创建新小说
+            </h2>
+            <div class="space-y-3 text-sm">
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="text-gray-400">主角姓名</label>
+                        <input id="new_name" class="w-full bg-gray-800 border border-gray-600 rounded p-2 mt-1" placeholder="例：林凡">
+                    </div>
+                    <div>
+                        <label class="text-gray-400">年龄</label>
+                        <input id="new_age" class="w-full bg-gray-800 border border-gray-600 rounded p-2 mt-1" placeholder="18岁">
+                    </div>
+                </div>
+                <div>
+                    <label class="text-gray-400">小说风格</label>
+                    <input id="new_style" class="w-full bg-gray-800 border border-gray-600 rounded p-2 mt-1" placeholder="玄幻、赛博朋克、言情...">
+                </div>
+                <div>
+                    <label class="text-gray-400">预期总字数</label>
+                    <input id="new_count" class="w-full bg-gray-800 border border-gray-600 rounded p-2 mt-1" placeholder="300万字">
+                </div>
+                <div>
+                    <label class="text-gray-400">故事大概走向/梗概</label>
+                    <textarea id="new_plot" rows="4" class="w-full bg-gray-800 border border-gray-600 rounded p-2 mt-1" placeholder="简述世界观、核心冲突、结局走向..."></textarea>
+                </div>
+            </div>
+            <div class="mt-6 flex justify-end gap-3">
+                <button onclick="hideNewNovel()" class="px-4 py-2 rounded text-gray-400 hover:bg-gray-800">取消</button>
+                <button onclick="createOutline()" class="px-5 py-2 rounded bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold hover:opacity-90">生成大纲</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 配置 Modal -->
+    <div id="configPanel" class="fixed inset-0 bg-black/80 z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-[#1f2937] w-full max-w-md rounded-lg p-6 shadow-xl border border-gray-700 max-h-[90vh] overflow-y-auto">
+            <h2 class="text-xl font-bold mb-4 text-white">⚙️ 全局配置</h2>
+            <div class="space-y-4 text-sm">
+                <div>
+                    <label class="block text-gray-400 mb-1">当前文件路径</label>
+                    <input id="cfg_path" class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-gray-300" readonly>
+                    <p class="text-xs text-gray-500 mt-1">提示：新建小说会自动更改此处路径</p>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block text-gray-400 mb-1">Model</label>
+                        <input id="cfg_model" class="w-full bg-gray-800 border border-gray-600 rounded p-2" value="">
+                    </div>
+                    <div>
+                         <label class="block text-gray-400 mb-1">API Key</label>
+                        <input id="cfg_key" type="password" class="w-full bg-gray-800 border border-gray-600 rounded p-2" value="">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-gray-400 mb-1">API URL</label>
+                    <input id="cfg_url" class="w-full bg-gray-800 border border-gray-600 rounded p-2" value="">
+                </div>
+                <div>
+                    <label class="block text-gray-400 mb-1">Prompt 前缀</label>
+                    <textarea id="cfg_sys" rows="3" class="w-full bg-gray-800 border border-gray-600 rounded p-2"></textarea>
+                </div>
+                <div>
+                    <label class="block text-gray-400 mb-1">默认用户指令</label>
+                    <textarea id="cfg_user" rows="2" class="w-full bg-gray-800 border border-gray-600 rounded p-2"></textarea>
+                </div>
+            </div>
+            <div class="mt-6 flex justify-end gap-3">
+                <button onclick="toggleConfig()" class="px-4 py-2 rounded text-gray-300 hover:bg-gray-700">取消</button>
+                <button onclick="saveConfig()" class="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 主内容区 -->
+    <main class="flex-1 overflow-y-auto p-4 space-y-6" id="mainContainer">
+
+        <!-- 上下文预览卡片 -->
+        <div class="glass rounded-xl p-4 sticky top-0 z-10 backdrop-blur-md shadow-lg border-b border-gray-700/50">
+            <div class="flex justify-between items-center mb-2">
+                <div class="flex items-center gap-2 overflow-hidden">
+                    <span class="text-xs font-bold text-gray-500 uppercase">当前文件</span>
+                    <span id="novelPath" class="text-xs text-blue-400 truncate max-w-[200px]">...</span>
+                </div>
+                <button onclick="refreshNovel()" class="text-xs text-gray-400 hover:text-white">↻ 刷新</button>
+            </div>
+            <div id="novelPreview" class="text-gray-400 text-sm whitespace-pre-wrap max-h-32 overflow-y-auto border-l-2 border-gray-700 pl-3 scrollbar-thin scrollbar-thumb-gray-700">正在加载...</div>
+            <div class="text-right mt-1">
+                <span id="wordCount" class="text-xs text-gray-600">0 字</span>
+            </div>
+        </div>
+
+        <!-- 对话生成区域 -->
+        <div id="chatArea" class="space-y-6 pb-20">
+            <!-- 动态卡片插入区 -->
+        </div>
+
+    </main>
+
+    <!-- 底部操作栏 -->
+    <footer class="bg-[#1e2028] border-t border-gray-800 p-4 safe-area-bottom">
+        <div class="max-w-3xl mx-auto flex gap-2">
+            <textarea id="promptInput" rows="1" class="flex-1 bg-gray-800 text-white rounded-xl px-4 py-3 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none shadow-inner" placeholder="输入续写指令..."></textarea>
+            <button id="generateBtn" onclick="generate()" class="btn-primary rounded-xl px-4 flex items-center justify-center min-w-[3.5rem] shadow-lg shadow-blue-900/20">
+                <span id="btnIcon" class="text-lg">➤</span>
+                <div id="btnLoader" class="loader hidden"></div>
+            </button>
+        </div>
+    </footer>
+
+    <script>
+        // 状态变量
+        let currentConfig = {};
+
+        window.addEventListener('load', () => {
+            loadConfig();
+            refreshNovel();
+        });
+
+        // ================= 配置相关 =================
+        async function loadConfig() {
+            const res = await fetch('/api/config');
+            currentConfig = await res.json();
+
+            // 填充配置面板
+            document.getElementById('cfg_path').value = currentConfig.file_path;
+            document.getElementById('cfg_url').value = currentConfig.base_url;
+            document.getElementById('cfg_key').value = currentConfig.api_key;
+            document.getElementById('cfg_model').value = currentConfig.model;
+            document.getElementById('cfg_sys').value = currentConfig.system_prompt_prefix;
+            document.getElementById('cfg_user').value = currentConfig.user_prompt;
+
+            // 更新输入框 placeholder
+            document.getElementById('promptInput').placeholder = `默认: ${currentConfig.user_prompt.slice(0, 15)}...`;
+        }
+
+        async function saveConfig() {
+            const newConfig = {
+                file_path: document.getElementById('cfg_path').value,
+                base_url: document.getElementById('cfg_url').value,
+                api_key: document.getElementById('cfg_key').value,
+                model: document.getElementById('cfg_model').value,
+                system_prompt_prefix: document.getElementById('cfg_sys').value,
+                user_prompt: document.getElementById('cfg_user').value
+            };
+            await fetch('/api/config', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(newConfig)
+            });
+            toggleConfig();
+            loadConfig();
+            refreshNovel();
+        }
+
+        async function refreshNovel() {
+            const res = await fetch('/api/novel');
+            const data = await res.json();
+            document.getElementById('novelPreview').innerText = data.content || "(空文件，请点击“新建”或输入指令开始)";
+
+            // 显示简短路径
+            const fullPath = data.path;
+            const fileName = fullPath.split(/[\\/]/).pop();
+            document.getElementById('novelPath').innerText = fileName;
+            document.getElementById('novelPath').title = fullPath;
+
+            document.getElementById('wordCount').innerText = `${data.full_length || 0} 字`;
+        }
+
+        function toggleConfig() {
+            document.getElementById('configPanel').classList.toggle('hidden');
+        }
+        function showNewNovel() { document.getElementById('newNovelModal').classList.remove('hidden'); }
+        function hideNewNovel() { document.getElementById('newNovelModal').classList.add('hidden'); }
+
+        // ================= 新建小说逻辑 =================
+        async function createOutline() {
+            hideNewNovel();
+
+            const req = {
+                protagonist: document.getElementById('new_name').value,
+                age: document.getElementById('new_age').value,
+                style: document.getElementById('new_style').value,
+                plot: document.getElementById('new_plot').value,
+                word_count: document.getElementById('new_count').value
+            };
+
+            // 添加 UI 卡片
+            const cardId = createLoadingCard("🧠 构思大纲中...", "正在生成人物小传和开篇剧情...");
+
+            try {
+                const res = await fetch('/api/outline', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(req)
+                });
+                const data = await res.json();
+
+                // 大纲生成成功，展示卡片
+                // 注意：这里需要传入 target_path，以便采纳时切换文件
+                updateCardToResult(cardId, data.result, "✨ 大纲已生成", data.target_path);
+
+            } catch (e) {
+                alert("生成失败: " + e);
+                removeCard(cardId);
+            }
+        }
+
+        // ================= 续写逻辑 =================
+        async function generate() {
+            const btn = document.getElementById('generateBtn');
+            const icon = document.getElementById('btnIcon');
+            const loader = document.getElementById('btnLoader');
+            const input = document.getElementById('promptInput');
+
+            btn.disabled = true;
+            icon.classList.add('hidden');
+            loader.classList.remove('hidden');
+
+            const userPrompt = input.value.trim();
+            input.value = '';
+
+            const cardId = createLoadingCard("✍️ 正在续写...", "AI 正在奋笔疾书...");
+
+            try {
+                const res = await fetch('/api/generate', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ user_prompt: userPrompt || null })
+                });
+                const data = await res.json();
+                updateCardToResult(cardId, data.result, "✨ 续写完成");
+
+            } catch (e) {
+                alert("生成失败: " + e);
+                removeCard(cardId);
+            } finally {
+                btn.disabled = false;
+                icon.classList.remove('hidden');
+                loader.classList.add('hidden');
+            }
+        }
+
+        // ================= 卡片与交互 =================
+        function createLoadingCard(title, text) {
+            const chatArea = document.getElementById('chatArea');
+            const cardId = 'card-' + Date.now();
+            const cardHtml = `
+                <div id="${cardId}" class="glass rounded-xl p-0 overflow-hidden border border-blue-500/30 animate-pulse">
+                    <div class="bg-blue-900/20 px-4 py-2 border-b border-white/5">
+                        <span class="text-xs text-blue-300 font-bold">${title}</span>
+                    </div>
+                    <div class="p-6 min-h-[100px] flex items-center justify-center text-gray-400 text-sm">
+                        ${text}
+                    </div>
+                </div>
+            `;
+            chatArea.insertAdjacentHTML('beforeend', cardHtml);
+            chatArea.lastElementChild.scrollIntoView({ behavior: 'smooth' });
+            return cardId;
+        }
+
+        function updateCardToResult(cardId, content, title, targetPath = null) {
+            const card = document.getElementById(cardId);
+            if (!card) return;
+
+            card.classList.remove('animate-pulse');
+            // 将 Markdown 转为 HTML
+            const htmlContent = marked.parse(content);
+
+            // 如果有 targetPath，说明是“新建大纲”类型的卡片，采纳按钮需要特殊处理
+            const saveAction = targetPath
+                ? `saveOutline('${cardId}', '${targetPath.replace(/\\/g, '\\\\')}')`
+                : `saveText('${cardId}')`;
+
+            card.innerHTML = `
+                <div class="bg-gray-800/50 px-4 py-2 border-b border-white/5 flex justify-between items-center">
+                    <span class="text-xs text-green-400 font-bold">${title}</span>
+                    <div class="flex gap-2">
+                        <button onclick="removeCard('${cardId}')" class="text-xs text-gray-500 hover:text-red-400 px-2">丢弃</button>
+                        <button onclick="${saveAction}" class="text-xs bg-green-600 text-white px-3 py-1.5 rounded hover:bg-green-500 shadow-lg shadow-green-900/20 font-medium tracking-wide">采纳并写入</button>
+                    </div>
+                </div>
+                <div class="p-4 prose prose-invert prose-sm text-gray-300 leading-relaxed font-serif max-w-none">
+                    <div class="content-text">${htmlContent}</div>
+                    <!-- 隐藏的原始内容用于保存 -->
+                    <div class="raw-text hidden">${content.replace(/</g, '&lt;')}</div>
+                </div>
+            `;
+        }
+
+        // 采纳普通续写
+        async function saveText(cardId) {
+            const card = document.getElementById(cardId);
+            const text = card.querySelector('.raw-text').innerText; // 取未渲染的文本
+            await executeSave(card, text);
+        }
+
+        // 采纳大纲（新建文件）
+        async function saveOutline(cardId, targetPath) {
+            const card = document.getElementById(cardId);
+            const text = card.querySelector('.raw-text').innerText;
+
+            const btn = card.querySelector('button.bg-green-600');
+            btn.innerText = "创建文件中...";
+            btn.disabled = true;
+
+            try {
+                // 1. 先切换后端配置的 file_path
+                // 注意：这里我们只更新 file_path，其他保留
+                // 为了安全，先获取最新配置，再修改 path
+                const resConfig = await fetch('/api/config');
+                const cfg = await resConfig.json();
+                cfg.file_path = targetPath;
+
+                await fetch('/api/config', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(cfg)
+                });
+
+                // 2. 保存内容 (现在 save 接口会写入新路径)
+                await fetch('/api/save', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ content: text })
+                });
+
+                markCardSaved(card);
+
+                // 刷新 UI
+                loadConfig(); // 更新配置面板显示的路径
+                refreshNovel(); // 刷新顶栏
+
+                alert(`🎉 新书已创建！\n文件路径: ${targetPath}`);
+
+            } catch (e) {
+                alert("保存失败: " + e);
+                btn.innerText = "重试";
+                btn.disabled = false;
+            }
+        }
+
+        async function executeSave(card, text) {
+            const btn = card.querySelector('button.bg-green-600');
+            btn.innerText = "写入中...";
+            btn.disabled = true;
+
+            try {
+                await fetch('/api/save', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ content: text })
+                });
+                markCardSaved(card);
+                refreshNovel();
+            } catch (e) {
+                alert("保存失败: " + e);
+                btn.innerText = "重试";
+                btn.disabled = false;
+            }
+        }
+
+        function markCardSaved(card) {
+            const btn = card.querySelector('button.bg-green-600');
+            card.classList.remove('border-blue-500/30');
+            card.classList.add('border-green-500/30', 'opacity-60');
+            btn.innerText = "已写入";
+            btn.className = "text-xs bg-gray-700 text-gray-400 px-3 py-1 rounded cursor-default";
+            // 移除丢弃按钮
+            const discardBtn = card.querySelector('button.text-gray-500');
+            if(discardBtn) discardBtn.remove();
+        }
+
+        function removeCard(cardId) {
+            if(confirm('确定要丢弃这段内容吗？')) {
+                document.getElementById(cardId).remove();
+            }
+        }
+    </script>
+</body>
+</html>
