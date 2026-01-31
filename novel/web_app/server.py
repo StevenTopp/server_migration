@@ -199,7 +199,11 @@ async def generate_outline(req: OutlineRequest):
         base_dir.mkdir(parents=True)
     new_file_path = base_dir / f"{timestamp}.txt"
 
-    prompt = (
+    # ✅ 使用配置中的 System Prompt (最高优先级，可用于破限)
+    system_instruction = current_config['system_prompt_prefix']
+
+    # 构造用户任务指令
+    user_instruction = (
         f"任务：创建小说大纲\n"
         f"主角：{req.protagonist} (年龄: {req.age})\n"
         f"风格：{req.style}\n"
@@ -219,8 +223,8 @@ async def generate_outline(req: OutlineRequest):
                 client.chat.completions.create,
                 model=current_config["model"],
                 messages=[
-                    {"role": "system", "content": "你是一个专业的小说主编和策划。"},
-                    {"role": "user", "content": prompt}
+                    {"role": "system", "content": system_instruction},
+                    {"role": "user", "content": user_instruction}
                 ],
                 temperature=0.9,
                 max_tokens=8192,
