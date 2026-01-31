@@ -4,6 +4,7 @@ import secrets
 import base64
 import datetime
 from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -16,12 +17,17 @@ import asyncio
 AUTH_USER = os.getenv("AUTH_USER", "steven")
 AUTH_PASS = os.getenv("AUTH_PASS", "qwer1234")
 
+# 📂 确保数据目录存在，并生成默认启动文件
+DATA_DIR = Path(r"D:\Code\Project\server_migration\novel\data")
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+STARTUP_FILE = DATA_DIR / f"{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+
 # 默认配置
 DEFAULT_CONFIG = {
     "base_url": "http://127.0.0.1:19000/v1",
     "api_key": "sk-c14a5dd7304f458fbc49acfd9889e74f",
     "model": "gemini-3-pro",
-    "file_path": r"D:\Code\models\aa.txt",
+    "file_path": str(STARTUP_FILE),
     "system_prompt_prefix": "续写小说，详细描述互动细节，并增加描述词，逐步推进小说剧情，",
     "user_prompt": "每次生成6000字，并在最后给出下一章节1条20字建议"
 }
@@ -103,7 +109,7 @@ def get_client():
 # ================= API 路由 =================
 @app.get("/")
 async def read_root():
-    return {"status": "ok", "message": "Novel Generator API"}
+    return RedirectResponse(url="/static/index.html")
 
 @app.get("/api/config")
 async def get_config():
