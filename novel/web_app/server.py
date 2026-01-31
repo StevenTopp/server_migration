@@ -4,6 +4,7 @@ import secrets
 import base64
 import datetime
 import json
+import re
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -134,6 +135,61 @@ async def get_novel_content():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# 🔄 自动重命名接口
+@app.post("/api/auto_rename")
+async def auto_rename():
+    path = Path(current_config["file_path"])
+    if not path.exists():
+        return {"status": "skipped", "reason": "file not found"}
+
+    # 检查文件名是否是时间戳格式 (简单判断：以数字开头，包含下划线)
+    filename = path.stem
+    if not re.match(r"^\d{8}_\d{6}$", filename):
+         return {"status": "skipped", "reason": "not a timestamp file"}
+
+    try:
+        # 读取内容前 3000 字用于总结
+        content = path.read_text(encoding="utf-8")[:3000]
+        if len(content) < 50:
+             return {"status": "skipped", "reason": "content too short"}
+
+        client = get_client()
+        resp = await asyncio.to_thread(
+            client.chat.completions.create,
+            model=current_config["model"],
+            messages=[
+                {"role": "system", "content": "你是一个编辑。请根据小说内容，取一个吸引人的书名，严格限制在15字以内。只返回书名，不要包含引号或其他文字。"},
+                {"role": "user", "content": content}
+            ],
+            temperature=0.7,
+            max_tokens=50
+        )
+        new_title = resp.choices[0].message.content.strip().replace('"', '').replace("'", "")
+        # 移除非法字符
+        new_title = re.sub(r'[\\/*?:"<>|]', "", new_title)
+
+        if not new_title:
+            return {"status": "failed", "reason": "empty title"}
+
+        new_path = path.parent / f"{new_title}.txt"
+
+        # 如果重名，加时间后缀
+        if new_path.exists():
+             new_path = path.parent / f"{new_title}_{filename[-6:]}.txt"
+
+        # 重命名
+        path.rename(new_path)
+
+        # 更新当前配置
+        current_config["file_path"] = str(new_path)
+
+        return {"status": "renamed", "new_name": new_title, "new_path": str(new_path)}
+
+    except Exception as e:
+        print(f"Rename failed: {e}")
+        return {"status": "error", "detail": str(e)}
+
+
 # 🔄 流式大纲生成
 @app.post("/api/outline")
 async def generate_outline(req: OutlineRequest):
@@ -155,7 +211,6 @@ async def generate_outline(req: OutlineRequest):
     print(f"生成大纲中... 目标: {new_file_path}")
     client = get_client()
 
-    # 首先发送目标路径作为元数据
     async def stream_generator():
         yield json.dumps({"target_path": str(new_file_path)}) + "\n"
 
@@ -169,7 +224,7 @@ async def generate_outline(req: OutlineRequest):
                 ],
                 temperature=0.9,
                 max_tokens=8192,
-                stream=True  # ✅ 开启流式
+                stream=True
             )
 
             for chunk in stream:
@@ -207,7 +262,7 @@ async def generate_novel(req: GenerateRequest):
                 ],
                 temperature=0.9,
                 max_tokens=8192,
-                stream=True # ✅ 开启流式
+                stream=True
             )
 
             for chunk in stream:

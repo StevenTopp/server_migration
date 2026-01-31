@@ -20,6 +20,21 @@
         /* 光标闪烁 */
         .cursor-blink::after { content: '▋'; animation: blink 1s step-end infinite; color: #3b82f6; margin-left: 2px; }
         @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+        /* 自定义滚动条 */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #1f2937; }
+        ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #6b7280; }
+
+        /* 悬浮按钮组 */
+        .float-actions {
+            position: absolute;
+            bottom: 12px;
+            right: 12px;
+            display: flex;
+            gap: 8px;
+            z-index: 10;
+        }
     </style>
 </head>
 <body class="h-screen flex flex-col overflow-hidden">
@@ -72,42 +87,39 @@
         </div>
     </div>
 
-    <!-- 配置 Modal -->
+    <!-- 配置 Modal (已简化) -->
     <div id="configPanel" class="fixed inset-0 bg-black/80 z-50 hidden flex items-center justify-center p-4">
-        <div class="bg-[#1f2937] w-full max-w-md rounded-lg p-6 shadow-xl border border-gray-700 max-h-[90vh] overflow-y-auto">
-            <h2 class="text-xl font-bold mb-4 text-white">⚙️ 全局配置</h2>
+        <div class="bg-[#1f2937] w-full max-w-md rounded-lg p-6 shadow-xl border border-gray-700 max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">
+            <h2 class="text-xl font-bold mb-4 text-white">⚙️ 偏好设置</h2>
             <div class="space-y-4 text-sm">
-                <div>
-                    <label class="block text-gray-400 mb-1">当前文件路径</label>
-                    <input id="cfg_path" class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-gray-300" readonly>
-                    <p class="text-xs text-gray-500 mt-1">提示：新建小说会自动更改此处路径</p>
-                </div>
-                <div class="grid grid-cols-2 gap-2">
-                    <div>
-                        <label class="block text-gray-400 mb-1">Model</label>
-                        <input id="cfg_model" class="w-full bg-gray-800 border border-gray-600 rounded p-2" value="">
-                    </div>
-                    <div>
-                         <label class="block text-gray-400 mb-1">API Key</label>
-                        <input id="cfg_key" type="password" class="w-full bg-gray-800 border border-gray-600 rounded p-2" value="">
+                <!-- 模型选择 (自定义下拉) -->
+                <div class="relative">
+                    <label class="block text-gray-400 mb-1">AI 模型</label>
+                    <div class="relative">
+                        <input id="cfg_model" class="w-full bg-gray-800 border border-gray-600 rounded p-2 cursor-pointer focus:ring-1 focus:ring-blue-500"
+                               readonly onclick="toggleModelList(event)" value="">
+                        <div class="absolute right-3 top-3 pointer-events-none text-gray-500 text-xs">▼</div>
+                        <div id="modelList" class="hidden absolute top-full left-0 w-full bg-[#2a303c] border border-gray-600 rounded mt-1 z-50 shadow-xl overflow-hidden"></div>
                     </div>
                 </div>
+
                 <div>
                     <label class="block text-gray-400 mb-1">API URL</label>
-                    <input id="cfg_url" class="w-full bg-gray-800 border border-gray-600 rounded p-2" value="">
+                    <input id="cfg_url" class="w-full bg-gray-800 border border-gray-600 rounded p-2 text-gray-300" value="">
                 </div>
-                <div>
-                    <label class="block text-gray-400 mb-1">Prompt 前缀</label>
-                    <textarea id="cfg_sys" rows="3" class="w-full bg-gray-800 border border-gray-600 rounded p-2"></textarea>
+
+                <div class="pt-2 border-t border-gray-700/50">
+                    <label class="block text-gray-400 mb-1">System Prompt (设定)</label>
+                    <textarea id="cfg_sys" rows="3" class="w-full bg-gray-800 border border-gray-600 rounded p-2 text-gray-300 focus:outline-none focus:border-blue-500"></textarea>
                 </div>
                 <div>
                     <label class="block text-gray-400 mb-1">默认用户指令</label>
-                    <textarea id="cfg_user" rows="2" class="w-full bg-gray-800 border border-gray-600 rounded p-2"></textarea>
+                    <textarea id="cfg_user" rows="2" class="w-full bg-gray-800 border border-gray-600 rounded p-2 text-gray-300 focus:outline-none focus:border-blue-500"></textarea>
                 </div>
             </div>
             <div class="mt-6 flex justify-end gap-3">
                 <button onclick="toggleConfig()" class="px-4 py-2 rounded text-gray-300 hover:bg-gray-700">取消</button>
-                <button onclick="saveConfig()" class="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700">保存</button>
+                <button onclick="saveConfig()" class="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 shadow-lg">保存配置</button>
             </div>
         </div>
     </div>
@@ -115,18 +127,28 @@
     <!-- 主内容区 -->
     <main class="flex-1 overflow-y-auto p-4 space-y-6" id="mainContainer">
 
-        <!-- 上下文预览卡片 -->
-        <div class="glass rounded-xl p-4 sticky top-0 z-10 backdrop-blur-md shadow-lg border-b border-gray-700/50">
-            <div class="flex justify-between items-center mb-2">
-                <div class="flex items-center gap-2 overflow-hidden">
-                    <span class="text-xs font-bold text-gray-500 uppercase">当前文件</span>
-                    <span id="novelPath" class="text-xs text-blue-400 truncate max-w-[200px]">...</span>
+        <!-- 上下文预览卡片 (可折叠) -->
+        <div class="glass rounded-xl p-3 sticky top-0 z-10 backdrop-blur-md shadow-lg border-b border-gray-700/50">
+            <!-- Header: 路径 | 字数 | 刷新 -->
+            <div class="flex justify-between items-center mb-1">
+                <div class="flex items-center gap-2 overflow-hidden flex-1 mr-2">
+                    <span class="text-xs font-bold text-gray-500 uppercase flex-shrink-0">📄</span>
+                    <span id="novelPath" class="text-xs text-blue-400 truncate font-mono">...</span>
                 </div>
-                <button onclick="refreshNovel()" class="text-xs text-gray-400 hover:text-white">↻ 刷新</button>
+                <div class="flex items-center gap-3 flex-shrink-0">
+                    <span id="wordCount" class="text-xs text-gray-500 font-mono">0 字</span>
+                    <button onclick="refreshNovel()" class="text-xs text-gray-400 hover:text-white px-1">↻</button>
+                </div>
             </div>
-            <div id="novelPreview" class="text-gray-400 text-sm whitespace-pre-wrap max-h-32 overflow-y-auto border-l-2 border-gray-700 pl-3 scrollbar-thin scrollbar-thumb-gray-700">正在加载...</div>
-            <div class="text-right mt-1">
-                <span id="wordCount" class="text-xs text-gray-600">0 字</span>
+
+            <!-- Content: 点击展开/收起 -->
+            <div class="relative group cursor-pointer select-none" onclick="togglePreview()">
+                <div id="novelPreview" class="text-gray-400 text-xs leading-relaxed whitespace-pre-wrap border-l-2 border-gray-700 pl-3 transition-all duration-300 max-h-[3em] overflow-hidden opacity-80 hover:opacity-100">正在加载...</div>
+
+                <!-- 底部展开提示 -->
+                <div class="flex justify-center -mb-2 mt-1">
+                    <span id="previewToggleIcon" class="text-[10px] text-gray-600 transition-transform duration-300">▼</span>
+                </div>
             </div>
         </div>
 
@@ -151,78 +173,93 @@
     <script>
         // 状态变量
         let currentConfig = {};
+        const AVAILABLE_MODELS = ['gemini-3-flash', 'gemini-3-pro-high', 'gemini-3-pro-low', 'claude-sonnet-4-5', 'claude-opus-4-5-thinking'];
 
         window.addEventListener('load', () => {
+            initModelList();
             loadConfig();
             refreshNovel();
+
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('#cfg_model') && !e.target.closest('#modelList')) {
+                    document.getElementById('modelList').classList.add('hidden');
+                }
+            });
         });
 
         // ================= 配置相关 =================
+        function initModelList() {
+            const list = document.getElementById('modelList');
+            list.innerHTML = AVAILABLE_MODELS.map(m =>
+                `<div onclick="selectModel('${m}')" class="px-3 py-2 hover:bg-blue-600 hover:text-white cursor-pointer text-gray-300 border-b border-gray-700/50 last:border-0 transition-colors text-sm">${m}</div>`
+            ).join('');
+        }
+
+        function toggleModelList(e) { if(e) e.stopPropagation(); document.getElementById('modelList').classList.toggle('hidden'); }
+        function selectModel(model) { document.getElementById('cfg_model').value = model; document.getElementById('modelList').classList.add('hidden'); }
+
         async function loadConfig() {
-            const res = await fetch('/api/config');
-            currentConfig = await res.json();
-            document.getElementById('cfg_path').value = currentConfig.file_path;
-            document.getElementById('cfg_url').value = currentConfig.base_url;
-            document.getElementById('cfg_key').value = currentConfig.api_key;
-            document.getElementById('cfg_model').value = currentConfig.model;
-            document.getElementById('cfg_sys').value = currentConfig.system_prompt_prefix;
-            document.getElementById('cfg_user').value = currentConfig.user_prompt;
-            document.getElementById('promptInput').placeholder = `默认: ${currentConfig.user_prompt.slice(0, 15)}...`;
+            try {
+                const res = await fetch('/api/config');
+                currentConfig = await res.json();
+                document.getElementById('cfg_url').value = currentConfig.base_url;
+                document.getElementById('cfg_model').value = currentConfig.model;
+                document.getElementById('cfg_sys').value = currentConfig.system_prompt_prefix;
+                document.getElementById('cfg_user').value = currentConfig.user_prompt;
+                document.getElementById('promptInput').placeholder = `默认: ${currentConfig.user_prompt.slice(0, 15)}...`;
+            } catch(e) {}
         }
 
         async function saveConfig() {
             const newConfig = {
-                file_path: document.getElementById('cfg_path').value,
+                file_path: currentConfig.file_path,
+                api_key: currentConfig.api_key,
                 base_url: document.getElementById('cfg_url').value,
-                api_key: document.getElementById('cfg_key').value,
                 model: document.getElementById('cfg_model').value,
                 system_prompt_prefix: document.getElementById('cfg_sys').value,
                 user_prompt: document.getElementById('cfg_user').value
             };
-            await fetch('/api/config', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(newConfig)
-            });
-            toggleConfig();
-            loadConfig();
-            refreshNovel();
+            await fetch('/api/config', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(newConfig) });
+            toggleConfig(); loadConfig();
         }
 
         async function refreshNovel() {
-            const res = await fetch('/api/novel');
-            const data = await res.json();
-            document.getElementById('novelPreview').innerText = data.content || "(空文件，请点击“新建”或输入指令开始)";
-            const fullPath = data.path;
-            const fileName = fullPath.split(/[\\/]/).pop();
-            document.getElementById('novelPath').innerText = fileName;
-            document.getElementById('novelPath').title = fullPath;
-            document.getElementById('wordCount').innerText = `${data.full_length || 0} 字`;
+            try {
+                const res = await fetch('/api/novel');
+                const data = await res.json();
+                document.getElementById('novelPreview').innerText = data.content || "(空文件，请点击“新建”或输入指令开始)";
+                if (data.path) {
+                    const fullPath = data.path;
+                    const fileName = fullPath.split(/[\\/]/).pop();
+                    document.getElementById('novelPath').innerText = fileName;
+                    document.getElementById('novelPath').title = fullPath;
+                }
+                document.getElementById('wordCount').innerText = `${data.full_length || 0} 字`;
+            } catch(e) {}
         }
 
-        function toggleConfig() { document.getElementById('configPanel').classList.toggle('hidden'); }
+        function toggleConfig() {
+            document.getElementById('configPanel').classList.toggle('hidden');
+            if(!document.getElementById('configPanel').classList.contains('hidden')) document.getElementById('modelList').classList.add('hidden');
+        }
         function showNewNovel() { document.getElementById('newNovelModal').classList.remove('hidden'); }
         function hideNewNovel() { document.getElementById('newNovelModal').classList.add('hidden'); }
 
-        // ================= 核心流式处理逻辑 =================
+        // ================= 核心流式处理 =================
         async function handleStreamRequest(url, body, cardTitle, isOutline = false) {
             const btn = document.getElementById('generateBtn');
             const icon = document.getElementById('btnIcon');
             const loader = document.getElementById('btnLoader');
+            btn.disabled = true; icon.classList.add('hidden'); loader.classList.remove('hidden');
 
-            btn.disabled = true;
-            icon.classList.add('hidden');
-            loader.classList.remove('hidden');
-
-            // 创建空卡片
             const cardId = createResultCard(cardTitle);
             const card = document.getElementById(cardId);
             const contentDiv = card.querySelector('.content-text');
             const rawDiv = card.querySelector('.raw-text');
-            contentDiv.classList.add('cursor-blink'); // 添加光标效果
+            contentDiv.classList.add('cursor-blink');
 
             let accumulatedText = "";
-            let targetPath = null; // 用于大纲生成的元数据
+            let targetPath = null;
 
             try {
                 const response = await fetch(url, {
@@ -230,26 +267,20 @@
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(body)
                 });
-
                 const reader = response.body.getReader();
                 const decoder = new TextDecoder();
 
                 while (true) {
                     const { done, value } = await reader.read();
                     if (done) break;
-
                     const chunk = decoder.decode(value, { stream: true });
 
-                    // 处理大纲接口的特殊元数据 (第一行 JSON)
                     if (isOutline && !targetPath && chunk.includes('target_path')) {
-                        // 简单解析首行，这里假设第一块包含完整json或分块情况（这里简化处理）
-                        // 实际流中可能混合，但我们的server是先yield json再yield文本
                         const lines = chunk.split('\n');
                         try {
                             const meta = JSON.parse(lines[0]);
                             if (meta.target_path) {
                                 targetPath = meta.target_path;
-                                // 剩余部分是文本
                                 const textPart = lines.slice(1).join('\n');
                                 accumulatedText += textPart;
                                 contentDiv.innerHTML = marked.parse(accumulatedText);
@@ -258,31 +289,20 @@
                             }
                         } catch(e) {}
                     }
-
                     accumulatedText += chunk;
-                    // 实时渲染 Markdown
                     contentDiv.innerHTML = marked.parse(accumulatedText);
                     rawDiv.innerText = accumulatedText;
-
-                    // 自动滚动到底部
-                    // card.scrollIntoView({ behavior: 'smooth', block: 'end' });
                 }
-
             } catch (e) {
                 accumulatedText += `\n[出错: ${e}]`;
                 contentDiv.innerText = accumulatedText;
             } finally {
                 contentDiv.classList.remove('cursor-blink');
-                btn.disabled = false;
-                icon.classList.remove('hidden');
-                loader.classList.add('hidden');
-
-                // 完成后启用按钮
+                btn.disabled = false; icon.classList.remove('hidden'); loader.classList.add('hidden');
                 enableCardActions(cardId, targetPath);
             }
         }
 
-        // ================= 新建小说逻辑 =================
         async function createOutline() {
             hideNewNovel();
             const req = {
@@ -292,36 +312,52 @@
                 plot: document.getElementById('new_plot').value,
                 word_count: document.getElementById('new_count').value
             };
-
             await handleStreamRequest('/api/outline', req, "🧠 大纲生成中", true);
         }
 
-        // ================= 续写逻辑 =================
         async function generate() {
             const input = document.getElementById('promptInput');
             const userPrompt = input.value.trim();
             input.value = '';
-
             await handleStreamRequest('/api/generate', { user_prompt: userPrompt || null }, "✍️ 正在续写");
         }
 
         // ================= UI 组件 =================
+        function togglePreview() {
+            const el = document.getElementById('novelPreview');
+            const icon = document.getElementById('previewToggleIcon');
+
+            // 检查当前是否折叠 (通过 max-h class 判断)
+            if (el.classList.contains('max-h-[3em]')) {
+                // 展开
+                el.classList.remove('max-h-[3em]', 'overflow-hidden');
+                el.classList.add('max-h-64', 'overflow-y-auto'); // 最大展开高度
+                icon.innerText = "▲";
+                icon.classList.add('text-blue-500');
+            } else {
+                // 收起
+                el.classList.add('max-h-[3em]', 'overflow-hidden');
+                el.classList.remove('max-h-64', 'overflow-y-auto');
+                el.scrollTop = 0; // 回到顶部
+                icon.innerText = "▼";
+                icon.classList.remove('text-blue-500');
+            }
+        }
+
         function createResultCard(title) {
             const chatArea = document.getElementById('chatArea');
             const cardId = 'card-' + Date.now();
             const cardHtml = `
-                <div id="${cardId}" class="glass rounded-xl p-0 overflow-hidden border border-blue-500/30">
+                <div id="${cardId}" class="glass rounded-xl p-0 overflow-hidden border border-blue-500/30 relative mb-4">
                     <div class="bg-blue-900/20 px-4 py-2 border-b border-white/5 flex justify-between items-center">
                         <span class="text-xs text-blue-300 font-bold">${title}</span>
-                        <!-- 占位按钮容器，生成完成后填充 -->
-                        <div class="action-buttons flex gap-2 opacity-0 transition-opacity duration-300">
-                             <button class="text-xs text-gray-500">...</button>
-                        </div>
                     </div>
-                    <div class="p-4 prose prose-invert prose-sm text-gray-300 leading-relaxed font-serif max-w-none">
+                    <div class="p-4 pb-12 prose prose-invert prose-sm text-gray-300 leading-relaxed font-serif max-w-none">
                         <div class="content-text min-h-[40px]"></div>
                         <div class="raw-text hidden"></div>
                     </div>
+                    <!-- 悬浮操作栏 -->
+                    <div class="float-actions opacity-0 transition-opacity duration-300"></div>
                 </div>
             `;
             chatArea.insertAdjacentHTML('beforeend', cardHtml);
@@ -333,23 +369,42 @@
             const card = document.getElementById(cardId);
             if (!card) return;
 
-            const btnContainer = card.querySelector('.action-buttons');
+            const btnContainer = card.querySelector('.float-actions');
             const saveAction = targetPath
                 ? `saveOutline('${cardId}', '${targetPath.replace(/\\/g, '\\\\')}')`
                 : `saveText('${cardId}')`;
 
             btnContainer.innerHTML = `
-                <button onclick="removeCard('${cardId}')" class="text-xs text-gray-500 hover:text-red-400 px-2">丢弃</button>
-                <button onclick="${saveAction}" class="text-xs bg-green-600 text-white px-3 py-1.5 rounded hover:bg-green-500 shadow-lg shadow-green-900/20 font-medium tracking-wide">采纳并写入</button>
+                <button onclick="removeCard('${cardId}')" class="text-xs bg-gray-700/80 backdrop-blur text-gray-400 hover:text-red-400 hover:bg-gray-700 px-3 py-1.5 rounded-lg border border-gray-600/50">丢弃</button>
+                <button onclick="${saveAction}" class="text-xs bg-blue-600/80 backdrop-blur text-white px-3 py-1.5 rounded-lg hover:bg-blue-500 border border-blue-500/50 shadow-lg">采纳并写入</button>
             `;
             btnContainer.classList.remove('opacity-0');
-
-            // 标题变绿表示完成
             card.querySelector('.text-blue-300').className = "text-xs text-green-400 font-bold";
             card.querySelector('.text-green-400').innerText = "✨ 生成完成";
         }
 
-        // ================= 保存逻辑 (保持不变) =================
+        // ================= 保存逻辑 =================
+        async function checkAutoRename() {
+            // 尝试触发自动重命名（后台会判断是否需要重命名）
+            try {
+                const res = await fetch('/api/auto_rename', { method: 'POST' });
+                const data = await res.json();
+                if (data.status === 'renamed') {
+                    // 如果重命名成功，刷新界面
+                    await loadConfig();
+                    await refreshNovel();
+                    // 显示一个非阻塞的提示
+                    const toast = document.createElement('div');
+                    toast.className = 'fixed top-16 right-4 bg-green-600 text-white px-4 py-2 rounded-lg shadow-xl text-sm z-50 animate-fade-in-down';
+                    toast.innerText = `📚 已自动命名为: ${data.new_name}`;
+                    document.body.appendChild(toast);
+                    setTimeout(() => toast.remove(), 3000);
+                }
+            } catch(e) {
+                console.log("Auto rename check failed:", e);
+            }
+        }
+
         async function saveText(cardId) {
             const card = document.getElementById(cardId);
             const text = card.querySelector('.raw-text').innerText;
@@ -359,74 +414,58 @@
         async function saveOutline(cardId, targetPath) {
             const card = document.getElementById(cardId);
             const text = card.querySelector('.raw-text').innerText;
-            const btn = card.querySelector('button.bg-green-600');
-
-            btn.innerText = "创建文件中...";
-            btn.disabled = true;
+            const btn = card.querySelector('.float-actions button:last-child');
+            btn.innerText = "创建中..."; btn.disabled = true;
 
             try {
                 const resConfig = await fetch('/api/config');
                 const cfg = await resConfig.json();
                 cfg.file_path = targetPath;
-
-                await fetch('/api/config', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify(cfg)
-                });
-
-                await fetch('/api/save', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ content: text })
-                });
+                await fetch('/api/config', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(cfg) });
+                await fetch('/api/save', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ content: text }) });
 
                 markCardSaved(card);
                 loadConfig();
                 refreshNovel();
-                alert(`🎉 新书已创建！\n文件路径: ${targetPath}`);
+
+                // 触发一次自动重命名检查
+                setTimeout(checkAutoRename, 1000);
 
             } catch (e) {
                 alert("保存失败: " + e);
-                btn.innerText = "重试";
-                btn.disabled = false;
+                btn.innerText = "重试"; btn.disabled = false;
             }
         }
 
         async function executeSave(card, text) {
-            const btn = card.querySelector('button.bg-green-600');
-            btn.innerText = "写入中...";
-            btn.disabled = true;
-
+            const btn = card.querySelector('.float-actions button:last-child');
+            btn.innerText = "写入中..."; btn.disabled = true;
             try {
-                await fetch('/api/save', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ content: text })
-                });
+                await fetch('/api/save', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ content: text }) });
                 markCardSaved(card);
                 refreshNovel();
+
+                // 每次保存都检查一下是否还在用时间戳文件名，如果是就尝试重命名
+                setTimeout(checkAutoRename, 1000);
+
             } catch (e) {
                 alert("保存失败: " + e);
-                btn.innerText = "重试";
-                btn.disabled = false;
+                btn.innerText = "重试"; btn.disabled = false;
             }
         }
 
         function markCardSaved(card) {
-            const btn = card.querySelector('button.bg-green-600');
+            const btn = card.querySelector('.float-actions button:last-child');
             card.classList.remove('border-blue-500/30');
             card.classList.add('border-green-500/30', 'opacity-60');
             btn.innerText = "已写入";
-            btn.className = "text-xs bg-gray-700 text-gray-400 px-3 py-1 rounded cursor-default";
-            const discardBtn = card.querySelector('button.text-gray-500');
+            btn.className = "text-xs bg-gray-700/50 text-gray-400 px-3 py-1 rounded-lg cursor-default border border-transparent";
+            const discardBtn = card.querySelector('.float-actions button:first-child');
             if(discardBtn) discardBtn.remove();
         }
 
         function removeCard(cardId) {
-            if(confirm('确定要丢弃这段内容吗？')) {
-                document.getElementById(cardId).remove();
-            }
+            if(confirm('确定要丢弃这段内容吗？')) document.getElementById(cardId).remove();
         }
     </script>
 </body>
