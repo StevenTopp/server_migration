@@ -3,8 +3,9 @@ import uvicorn
 import secrets
 import base64
 import datetime
+import json
 from fastapi import FastAPI, HTTPException, Request, Response
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -133,9 +134,9 @@ async def get_novel_content():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# 🔄 流式大纲生成
 @app.post("/api/outline")
 async def generate_outline(req: OutlineRequest):
-    # 生成时间戳文件路径
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     base_dir = Path(r"D:\Code\Project\server_migration\novel\data")
     if not base_dir.exists():
@@ -154,24 +155,33 @@ async def generate_outline(req: OutlineRequest):
     print(f"生成大纲中... 目标: {new_file_path}")
     client = get_client()
 
-    try:
-        resp = await asyncio.to_thread(
-            client.chat.completions.create,
-            model=current_config["model"],
-            messages=[
-                {"role": "system", "content": "你是一个专业的小说主编和策划。"},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.9,
-            max_tokens=8192,
-            stream=False
-        )
-        content = resp.choices[0].message.content
-        return {"result": content, "target_path": str(new_file_path)}
-    except Exception as e:
-        print(f"Error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    # 首先发送目标路径作为元数据
+    async def stream_generator():
+        yield json.dumps({"target_path": str(new_file_path)}) + "\n"
 
+        try:
+            stream = await asyncio.to_thread(
+                client.chat.completions.create,
+                model=current_config["model"],
+                messages=[
+                    {"role": "system", "content": "你是一个专业的小说主编和策划。"},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.9,
+                max_tokens=8192,
+                stream=True  # ✅ 开启流式
+            )
+
+            for chunk in stream:
+                if chunk.choices[0].delta.content:
+                    yield chunk.choices[0].delta.content
+
+        except Exception as e:
+            yield f"\n[ERROR: {str(e)}]"
+
+    return StreamingResponse(stream_generator(), media_type="text/event-stream")
+
+# 🔄 流式续写
 @app.post("/api/generate")
 async def generate_novel(req: GenerateRequest):
     path = Path(current_config["file_path"])
@@ -180,35 +190,40 @@ async def generate_novel(req: GenerateRequest):
     except Exception as e:
         context = ""
 
-    system_prompt = f"{current_config['system_prompt_prefix']}\n\n当前小说内容(截取末尾)：\n{context[-8000:]}" # 限制上下文长度防止溢出
+    system_prompt = f"{current_config['system_prompt_prefix']}\n\n当前小说内容(截取末尾)：\n{context[-8000:]}"
     user_prompt = req.user_prompt if req.user_prompt else current_config["user_prompt"]
 
-    print("续写中...")
+    print("续写中(Streaming)...")
     client = get_client()
 
-    try:
-        resp = await asyncio.to_thread(
-            client.chat.completions.create,
-            model=current_config["model"],
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ],
-            temperature=0.9,
-            max_tokens=8192,
-            stream=False
-        )
-        content = resp.choices[0].message.content
-        return {"result": content}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    async def stream_generator():
+        try:
+            stream = await asyncio.to_thread(
+                client.chat.completions.create,
+                model=current_config["model"],
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                temperature=0.9,
+                max_tokens=8192,
+                stream=True # ✅ 开启流式
+            )
+
+            for chunk in stream:
+                if chunk.choices[0].delta.content:
+                    yield chunk.choices[0].delta.content
+
+        except Exception as e:
+            yield f"\n[ERROR: {str(e)}]"
+
+    return StreamingResponse(stream_generator(), media_type="text/event-stream")
 
 @app.post("/api/save")
 async def save_novel(req: SaveRequest):
     path = Path(current_config["file_path"])
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        # 如果文件不存在，则是新建，用 write；如果存在，则是续写，用 append
         mode = "a" if path.exists() else "w"
         separator = "\n\n" if path.exists() else ""
 
@@ -220,6 +235,6 @@ async def save_novel(req: SaveRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
-    print(f"启动服务: http://localhost:8000/static/index.html")
+    print(f"启动服务: http://localhost:8000/")
     print(f"🔐 认证开启 - 用户名: {AUTH_USER} | 密码: {AUTH_PASS}")
     uvicorn.run(app, host="0.0.0.0", port=8000)
