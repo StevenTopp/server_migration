@@ -3,7 +3,8 @@ set -euo pipefail
 
 # ====== 可修改参数 ======
 INSTALL_DIR="/home/open-webui"
-REPO_URL="https://github.com/open-webui/open-webui.git"
+REPO_URL="git@github.com:open-webui/open-webui.git"
+
 # =======================
 
 log() { echo -e "\n==> $*\n"; }
