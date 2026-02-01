@@ -6,6 +6,7 @@ import json
 import datetime
 import re
 import asyncio
+import uuid
 from typing import Optional
 from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request, Response, Depends, status
@@ -61,6 +62,10 @@ class GenerateRequest(BaseModel):
 
 class SaveRequest(BaseModel):
     content: str
+    prompt: Optional[str] = "" # 记录对应的 prompt
+
+class DiscardRequest(BaseModel):
+    block_id: str
 
 class OutlineRequest(BaseModel):
     protagonist: str
@@ -262,7 +267,6 @@ async def auto_rename(username: str = Depends(get_current_user)):
              return {"status": "skipped", "reason": "content too short"}
 
         client = get_openai_client(config)
-        # ✅ 使用异步调用
         resp = await client.chat.completions.create(
             model=config["model"],
             messages=[
@@ -283,6 +287,12 @@ async def auto_rename(username: str = Depends(get_current_user)):
              new_path = path.parent / f"{new_title}_{filename[-6:]}.txt"
 
         path.rename(new_path)
+
+        # 同时重命名对应的 json 历史文件
+        old_json_path = path.with_suffix(".json")
+        if old_json_path.exists():
+            new_json_path = new_path.with_suffix(".json")
+            old_json_path.rename(new_json_path)
 
         # 更新配置中的路径
         config["file_path"] = str(new_path)
@@ -389,38 +399,103 @@ async def generate_novel(req: GenerateRequest, username: str = Depends(get_curre
 
 @app.post("/api/save")
 async def save_novel(req: SaveRequest, username: str = Depends(get_current_user)):
-    # 这是一个特殊逻辑：
-    # 如果是 Outline 接口生成了新路径，前端会先调用 config 接口更新 file_path 吗？
-    # 不，前端在 Outline 采纳时，需要同时告诉后端“切换文件”。
-    # 但为了安全，我们最好不要让前端随意指定 file_path。
-    # 这里的逻辑是：前端调用 save 只是保存内容到“当前配置的文件路径”。
-    # 如果是大纲（新文件），前端应该先调用一个“切换文件”的接口，或者我们在这里处理。
-
-    # 根据之前的逻辑，前端在 saveOutline 时是先 fetch('/api/config', POST) 更新 path 的。
-    # 我们需要在 api/config 里做安全校验（已做）。
-
     config = get_user_config(username)
     path = Path(config["file_path"])
+    json_path = path.with_suffix(".json")
 
-    # 双重检查路径是否属于用户
+    # 安全检查
     user_data_dir = DATA_ROOT / username
     try:
-        # resolve() 处理绝对路径
         if not str(path.resolve()).startswith(str(user_data_dir.resolve())):
-             # 如果路径非法，强行修正回默认
              raise HTTPException(status_code=403, detail="Illegal file path access")
     except:
-         pass # 可能是新文件还不存在
+         pass
 
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
+
+        # 1. 写入 .txt
         mode = "a" if path.exists() else "w"
         separator = "\n\n" if path.exists() else ""
-
+        text_to_write = separator + req.content + "\n"
         with open(path, mode, encoding="utf-8") as f:
-            f.write(separator + req.content + "\n")
+            f.write(text_to_write)
 
-        return {"status": "saved"}
+        # 2. 写入 .json 历史记录
+        block_id = str(uuid.uuid4())
+        history_item = {
+            "id": block_id,
+            "timestamp": datetime.datetime.now().isoformat(),
+            "role": "assistant",
+            "content": req.content,
+            "prompt": req.prompt or "",
+            "status": "active" # active, discarded
+        }
+
+        history = []
+        if json_path.exists():
+            try:
+                history = json.loads(json_path.read_text(encoding="utf-8"))
+            except: pass
+
+        history.append(history_item)
+        json_path.write_text(json.dumps(history, indent=2, ensure_ascii=False), encoding="utf-8")
+
+        return {"status": "saved", "block_id": block_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/discard")
+async def discard_novel(req: DiscardRequest, username: str = Depends(get_current_user)):
+    config = get_user_config(username)
+    path = Path(config["file_path"])
+    json_path = path.with_suffix(".json")
+
+    if not path.exists() or not json_path.exists():
+        raise HTTPException(status_code=404, detail="Files not found")
+
+    try:
+        # 1. 更新 JSON 状态
+        history = json.loads(json_path.read_text(encoding="utf-8"))
+        target_block = None
+        for item in history:
+            if item["id"] == req.block_id:
+                item["status"] = "discarded"
+                target_block = item
+                break
+
+        if not target_block:
+            raise HTTPException(status_code=404, detail="Block not found")
+
+        json_path.write_text(json.dumps(history, indent=2, ensure_ascii=False), encoding="utf-8")
+
+        # 2. 从 TXT 中删除内容 (简单字符串替换)
+        # 注意：这里做的是简单替换，如果内容重复可能误删，但在小说场景下大段重复概率较低
+        # 更严谨的做法是重构整个TXT，但这里为了性能先用 replace
+        content = path.read_text(encoding="utf-8")
+        # 尝试匹配带换行的内容
+        # 我们假设写入时加了 \n\n 前缀，或者 \n 后缀
+        # 为了稳妥，我们直接替换内容字符串为空
+
+        # 这里的删除逻辑比较激进，如果文中有多处相同段落会都删掉。
+        # 改进：只删除最后一次出现的，或者根据上下文定位。
+        # 简化处理：假设用户是撤销最近的一次操作，通常是在文件末尾。
+
+        # 更好的方法：根据 history 重建 txt (只包含 active 的 block)
+        # 这样最安全准确
+        new_content_list = []
+        for item in history:
+            if item.get("status") == "active":
+                new_content_list.append(item["content"])
+
+        new_full_text = "\n\n".join(new_content_list)
+        # 加上末尾换行
+        if new_full_text: new_full_text += "\n"
+
+        path.write_text(new_full_text, encoding="utf-8")
+
+        return {"status": "discarded", "block_id": req.block_id}
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
