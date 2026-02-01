@@ -468,6 +468,8 @@ async def generate_novel(req: GenerateRequest, username: str = Depends(get_curre
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt}
         ]
+        # 打印非自由模式下的 prompt 以便于调试
+        print(f"DEBUG Normal Mode Messages: {json.dumps(messages, ensure_ascii=False, indent=2)}")
 
     print(f"[{username}] 续写中(Streaming)...")
     client = get_openai_client(config)
