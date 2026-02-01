@@ -27,6 +27,11 @@
             <input id="login_user" class="input-field" placeholder="用户名">
             <input id="login_pass" type="password" class="input-field" placeholder="密码">
 
+            <div class="flex items-center mb-4">
+                <input type="checkbox" id="remember_me" class="mr-2 rounded bg-gray-700 border-gray-600 text-blue-600 focus:ring-blue-500">
+                <label for="remember_me" class="text-sm text-gray-400 select-none">记住账号密码</label>
+            </div>
+
             <button onclick="doLogin()" class="btn-primary mb-4">进入工坊</button>
 
             <div class="text-center text-sm text-gray-400">
@@ -50,10 +55,21 @@
     </div>
 
     <script>
-        // 页面加载时检查是否已有 token，有则跳转
+        // 页面加载时检查是否已有 token
         if(localStorage.getItem('token')) {
             window.location.href = '/static/index.html';
         }
+
+        // 自动填充记住的账号密码
+        window.onload = () => {
+            const savedUser = localStorage.getItem('saved_user');
+            const savedPass = localStorage.getItem('saved_pass');
+            if (savedUser && savedPass) {
+                document.getElementById('login_user').value = savedUser;
+                document.getElementById('login_pass').value = savedPass;
+                document.getElementById('remember_me').checked = true;
+            }
+        };
 
         function toggleMode() {
             document.getElementById('loginForm').classList.toggle('hidden');
@@ -74,6 +90,15 @@
                 const data = await res.json();
 
                 if(data.status === 'ok') {
+                    // 处理“记住我”
+                    if (document.getElementById('remember_me').checked) {
+                        localStorage.setItem('saved_user', user);
+                        localStorage.setItem('saved_pass', pass);
+                    } else {
+                        localStorage.removeItem('saved_user');
+                        localStorage.removeItem('saved_pass');
+                    }
+
                     localStorage.setItem('token', data.token);
                     localStorage.setItem('username', data.username);
                     window.location.href = '/static/index.html';
