@@ -442,6 +442,23 @@ async def generate_novel(req: GenerateRequest, username: str = Depends(get_curre
 
     return StreamingResponse(stream_generator(), media_type="text/event-stream")
 
+@app.post("/api/history")
+async def get_history(username: str = Depends(get_current_user)):
+    config = get_user_config(username)
+    path = Path(config["file_path"])
+    json_path = path.with_suffix(".json")
+
+    if not json_path.exists():
+        return {"history": []}
+
+    try:
+        history = json.loads(json_path.read_text(encoding="utf-8"))
+        # 倒序排列，最新的在最前
+        return {"history": history[::-1]}
+    except Exception as e:
+        print(f"Error reading history: {e}")
+        return {"history": []}
+
 @app.post("/api/save")
 async def save_novel(req: SaveRequest, username: str = Depends(get_current_user)):
     config = get_user_config(username)

@@ -104,7 +104,9 @@
 
     <!-- 顶部栏 -->
     <header class="h-14 flex items-center justify-between px-4 border-b border-white/10 bg-[#09090b]/80 backdrop-blur shrink-0 z-30">
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-3">
+            <!-- 汉堡菜单 (历史记录) -->
+            <button onclick="toggleSidebar()" class="text-gray-400 hover:text-white text-xl">☰</button>
             <h1 class="font-bold text-lg text-gray-200 tracking-wide">织梦者</h1>
         </div>
         <div class="flex gap-3">
@@ -115,6 +117,19 @@
             <button onclick="toggleConfig()" class="text-gray-500 hover:text-gray-300 text-xl transition-colors w-8 h-8 flex items-center justify-center">⚙️</button>
         </div>
     </header>
+
+    <!-- 历史记录侧边栏 -->
+    <div id="historySidebarBackdrop" onclick="toggleSidebar()" class="fixed inset-0 bg-black/50 z-40 hidden transition-opacity duration-300 opacity-0"></div>
+    <div id="historySidebar" class="fixed inset-y-0 left-0 w-80 bg-[#18181b] border-r border-white/10 z-50 transform -translate-x-full transition-transform duration-300 shadow-2xl flex flex-col">
+        <div class="p-4 border-b border-white/10 flex justify-between items-center bg-[#09090b]">
+            <h2 class="text-lg font-bold text-white flex items-center gap-2">🕒 历史回溯</h2>
+            <button onclick="toggleSidebar()" class="text-gray-400 hover:text-white text-xl">&times;</button>
+        </div>
+        <div id="historyList" class="flex-1 overflow-y-auto p-4 space-y-4">
+            <!-- 历史记录项将在这里渲染 -->
+            <div class="text-center text-gray-500 text-sm mt-10">正在加载...</div>
+        </div>
+    </div>
 
     <!-- 新建小说 Modal -->
     <div id="newNovelModal" class="fixed inset-0 bg-black/80 z-50 hidden flex items-center justify-center p-4">
@@ -311,6 +326,61 @@
             apiFetch('/api/logout', { method: 'POST' });
             localStorage.removeItem('token'); localStorage.removeItem('username');
             window.location.href = '/static/login.html';
+        }
+
+        // ================= Sidebar Logic =================
+        function toggleSidebar() {
+            const sidebar = document.getElementById('historySidebar');
+            const backdrop = document.getElementById('historySidebarBackdrop');
+
+            if (sidebar.classList.contains('-translate-x-full')) {
+                // 打开
+                sidebar.classList.remove('-translate-x-full');
+                backdrop.classList.remove('hidden');
+                setTimeout(() => backdrop.classList.remove('opacity-0'), 10); // 渐显
+                loadHistory(); // 加载数据
+            } else {
+                // 关闭
+                sidebar.classList.add('-translate-x-full');
+                backdrop.classList.add('opacity-0');
+                setTimeout(() => backdrop.classList.add('hidden'), 300); // 等动画结束
+            }
+        }
+
+        async function loadHistory() {
+            const list = document.getElementById('historyList');
+            list.innerHTML = '<div class="text-center text-gray-500 text-sm mt-4"><span class="animate-spin inline-block">↻</span> 加载中...</div>';
+
+            try {
+                const res = await apiFetch('/api/history', { method: 'POST' });
+                const data = await res.json();
+
+                if (!data.history || data.history.length === 0) {
+                    list.innerHTML = '<div class="text-center text-gray-500 text-sm mt-10">暂无历史记录</div>';
+                    return;
+                }
+
+                list.innerHTML = data.history.map(item => {
+                    const isUser = item.role === 'user';
+                    const statusClass = item.status === 'discarded' ? 'border-red-500/30 bg-red-900/10' : (isUser ? 'border-blue-500/30 bg-blue-900/10' : 'border-gray-700 bg-gray-800/50');
+                    const roleLabel = isUser ? '👤 指令' : (item.prompt === 'Original File Content (Base)' ? '📦 原始内容' : '🤖 生成');
+                    const time = new Date(item.timestamp).toLocaleTimeString();
+                    const statusBadge = item.status === 'discarded' ? '<span class="text-[10px] bg-red-900/50 text-red-300 px-1 rounded ml-2">已撤销</span>' : '';
+
+                    return `
+                        <div class="border rounded-lg p-3 ${statusClass} text-sm">
+                            <div class="flex justify-between items-center mb-1 text-xs text-gray-400">
+                                <span class="font-bold flex items-center">${roleLabel} ${statusBadge}</span>
+                                <span>${time}</span>
+                            </div>
+                            <div class="text-gray-300 whitespace-pre-wrap break-words leading-relaxed max-h-32 overflow-hidden text-ellipsis">${item.content}</div>
+                        </div>
+                    `;
+                }).join('');
+
+            } catch (e) {
+                list.innerHTML = `<div class="text-center text-red-400 text-sm mt-4">加载失败: ${e}</div>`;
+            }
         }
 
         // ================= 业务逻辑 =================
