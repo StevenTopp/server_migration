@@ -425,6 +425,7 @@ async def generate_outline(req: OutlineRequest, username: str = Depends(get_curr
              post_hidden_freecreate_prompt=config.get("post_hidden_freecreate_prompt", ""),
              outline_requirements=outline_requirements
          )
+         print(f"DEBUG Free Mode Outline Messages: {json.dumps(messages, ensure_ascii=False, indent=2)}")
     else:
         messages = [
             {"role": "system", "content": final_system_prompt},
