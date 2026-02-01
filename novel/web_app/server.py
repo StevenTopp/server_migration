@@ -112,8 +112,8 @@ def verify_password(stored_hash, stored_salt, provided_password):
 def get_user_prompts(username: str):
     prompt_path = PROMPT_DATA_ROOT / f"{username}.json"
     default_prompts = {
-        "system_prompt_prefix": "续写小说，详细描述互动细节，并增加描述词，逐步推进小说剧情，",
-        "user_prompt": "每次生成6000字，并在最后给出下一章节1条20字建议"
+        "system_prompt_prefix": "创作小说，重情节连贯，丰富人物互动细节，增加环境与心理描写，语言生动细腻，逐步推进剧情发展，使故事更具代入感与张力。",
+        "user_prompt": "每次生成约3000字正文，并在结尾给出下一章节的3条简短剧情建议（20字以内）。"
     }
     if prompt_path.exists():
         try:
