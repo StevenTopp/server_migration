@@ -306,10 +306,18 @@
     <footer class="bg-[#09090b] border-t border-white/10 p-4 safe-area-bottom z-40 relative">
         <div class="max-w-3xl mx-auto flex gap-3">
             <textarea id="promptInput" rows="1" class="flex-1 bg-[#18181b] text-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-1 focus:ring-white/30 resize-none shadow-inner border border-white/5 placeholder-gray-600" placeholder="输入续写指令..."></textarea>
-            <button id="generateBtn" onclick="generate()" class="btn-primary rounded-xl px-5 flex items-center justify-center min-w-[3.5rem] shadow-lg shadow-white/5">
-                <span id="btnIcon" class="text-lg">➤</span>
-                <div id="btnLoader" class="loader hidden"></div>
-            </button>
+
+            <!-- 生成/暂停按钮 -->
+            <div class="relative">
+                <button id="generateBtn" onclick="generate()" class="btn-primary rounded-xl px-5 flex items-center justify-center min-w-[3.5rem] shadow-lg shadow-white/5 h-full">
+                    <span id="btnIcon" class="text-lg">➤</span>
+                    <div id="btnLoader" class="loader hidden"></div>
+                </button>
+
+                <button id="stopBtn" onclick="stopGeneration()" class="hidden absolute inset-0 bg-red-600 hover:bg-red-700 text-white rounded-xl flex items-center justify-center shadow-lg transition-colors z-10">
+                    <span class="font-bold text-sm">⏹ 暂停</span>
+                </button>
+            </div>
         </div>
     </footer>
 
@@ -465,11 +473,28 @@
         function hideHelp() { document.getElementById('helpModal').classList.add('hidden'); }
 
         // ================= 核心流式处理 =================
+        let currentController = null; // 用于控制终止请求
+
+        function stopGeneration() {
+            if (currentController) {
+                currentController.abort();
+                currentController = null;
+            }
+        }
+
         async function handleStreamRequest(url, body, cardTitle, isOutline = false) {
             const btn = document.getElementById('generateBtn');
+            const stopBtn = document.getElementById('stopBtn');
             const icon = document.getElementById('btnIcon');
             const loader = document.getElementById('btnLoader');
-            btn.disabled = true; icon.classList.add('hidden'); loader.classList.remove('hidden');
+
+            // 切换按钮状态：隐藏生成，显示暂停
+            btn.classList.add('hidden');
+            stopBtn.classList.remove('hidden');
+
+            // 准备 AbortController
+            currentController = new AbortController();
+            const signal = currentController.signal;
 
             const cardId = createResultCard(cardTitle);
             const card = document.getElementById(cardId);
@@ -485,7 +510,8 @@
                 const response = await fetch(url, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${TOKEN}` },
-                    body: JSON.stringify(body)
+                    body: JSON.stringify(body),
+                    signal: signal // 绑定信号
                 });
                 if (response.status === 401) { doLogout(); return; }
                 const reader = response.body.getReader();
@@ -511,10 +537,19 @@
                     contentDiv.innerHTML = marked.parse(accumulatedText);
                     card.querySelector('.raw-text').innerText = accumulatedText;
                 }
-            } catch (e) { contentDiv.innerText = accumulatedText + `\n[出错: ${e}]`; }
-            finally {
+            } catch (e) {
+                if (e.name === 'AbortError') {
+                    contentDiv.insertAdjacentHTML('beforeend', '<br><span class="text-red-400 text-xs italic">[已暂停输出]</span>');
+                } else {
+                    contentDiv.innerText = accumulatedText + `\n[出错: ${e}]`;
+                }
+            } finally {
                 contentDiv.classList.remove('cursor-blink');
-                btn.disabled = false; icon.classList.remove('hidden'); loader.classList.add('hidden');
+                // 恢复按钮状态
+                stopBtn.classList.add('hidden');
+                btn.classList.remove('hidden');
+                currentController = null;
+
                 enableCardActions(cardId, targetPath);
             }
         }
