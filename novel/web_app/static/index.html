@@ -120,13 +120,18 @@
 
     <!-- 历史记录侧边栏 -->
     <div id="historySidebarBackdrop" onclick="toggleSidebar()" class="fixed inset-0 bg-black/50 z-40 hidden transition-opacity duration-300 opacity-0"></div>
-    <div id="historySidebar" class="fixed inset-y-0 left-0 w-80 bg-[#18181b] border-r border-white/10 z-50 transform -translate-x-full transition-transform duration-300 shadow-2xl flex flex-col">
+    <div id="historySidebar" class="fixed inset-y-0 left-0 w-72 bg-[#18181b] border-r border-white/10 z-50 transform -translate-x-full transition-transform duration-300 shadow-2xl flex flex-col">
         <div class="p-4 border-b border-white/10 flex justify-between items-center bg-[#09090b]">
-            <h2 class="text-lg font-bold text-white flex items-center gap-2">🕒 历史回溯</h2>
+            <h2 class="text-lg font-bold text-white flex items-center gap-2">📚 我的作品</h2>
             <button onclick="toggleSidebar()" class="text-gray-400 hover:text-white text-xl">&times;</button>
         </div>
-        <div id="historyList" class="flex-1 overflow-y-auto p-4 space-y-4">
-            <!-- 历史记录项将在这里渲染 -->
+        <div class="p-4">
+            <button onclick="showNewNovel(); toggleSidebar()" class="w-full bg-white text-black py-2 rounded-lg text-sm font-bold hover:bg-gray-200 transition-colors flex items-center justify-center gap-2">
+                <span>+</span> 开启新创作
+            </button>
+        </div>
+        <div id="sessionList" class="flex-1 overflow-y-auto px-2 space-y-1">
+            <!-- 会话列表 -->
             <div class="text-center text-gray-500 text-sm mt-10">正在加载...</div>
         </div>
     </div>
@@ -328,58 +333,74 @@
             window.location.href = '/static/login.html';
         }
 
-        // ================= Sidebar Logic =================
+        // ================= Sidebar Logic (Sessions) =================
         function toggleSidebar() {
             const sidebar = document.getElementById('historySidebar');
             const backdrop = document.getElementById('historySidebarBackdrop');
 
             if (sidebar.classList.contains('-translate-x-full')) {
-                // 打开
                 sidebar.classList.remove('-translate-x-full');
                 backdrop.classList.remove('hidden');
-                setTimeout(() => backdrop.classList.remove('opacity-0'), 10); // 渐显
-                loadHistory(); // 加载数据
+                setTimeout(() => backdrop.classList.remove('opacity-0'), 10);
+                loadSessions(); // 加载会话列表
             } else {
-                // 关闭
                 sidebar.classList.add('-translate-x-full');
                 backdrop.classList.add('opacity-0');
-                setTimeout(() => backdrop.classList.add('hidden'), 300); // 等动画结束
+                setTimeout(() => backdrop.classList.add('hidden'), 300);
             }
         }
 
-        async function loadHistory() {
-            const list = document.getElementById('historyList');
+        async function loadSessions() {
+            const list = document.getElementById('sessionList');
             list.innerHTML = '<div class="text-center text-gray-500 text-sm mt-4"><span class="animate-spin inline-block">↻</span> 加载中...</div>';
 
             try {
-                const res = await apiFetch('/api/history', { method: 'POST' });
+                const res = await apiFetch('/api/sessions', { method: 'POST' });
                 const data = await res.json();
 
-                if (!data.history || data.history.length === 0) {
-                    list.innerHTML = '<div class="text-center text-gray-500 text-sm mt-10">暂无历史记录</div>';
+                if (!data.sessions || data.sessions.length === 0) {
+                    list.innerHTML = '<div class="text-center text-gray-500 text-sm mt-10">暂无作品</div>';
                     return;
                 }
 
-                list.innerHTML = data.history.map(item => {
-                    const isUser = item.role === 'user';
-                    const statusClass = item.status === 'discarded' ? 'border-red-500/30 bg-red-900/10' : (isUser ? 'border-blue-500/30 bg-blue-900/10' : 'border-gray-700 bg-gray-800/50');
-                    const roleLabel = isUser ? '👤 指令' : (item.prompt === 'Original File Content (Base)' ? '📦 原始内容' : '🤖 生成');
-                    const time = new Date(item.timestamp).toLocaleTimeString();
-                    const statusBadge = item.status === 'discarded' ? '<span class="text-[10px] bg-red-900/50 text-red-300 px-1 rounded ml-2">已撤销</span>' : '';
+                // 获取当前正在编辑的文件名，用于高亮
+                const currentFile = document.getElementById('novelPath').title.split(/[\\/]/).pop();
+
+                list.innerHTML = data.sessions.map(item => {
+                    const isActive = item.filename === currentFile;
+                    const activeClass = isActive ? 'bg-white/10 border-l-2 border-white' : 'hover:bg-white/5 border-l-2 border-transparent';
+                    const time = new Date(item.updated_at * 1000).toLocaleDateString();
+
+                    // 去掉 .txt 后缀显示
+                    const displayName = item.filename.replace('.txt', '');
 
                     return `
-                        <div class="border rounded-lg p-3 ${statusClass} text-sm">
-                            <div class="flex justify-between items-center mb-1 text-xs text-gray-400">
-                                <span class="font-bold flex items-center">${roleLabel} ${statusBadge}</span>
-                                <span>${time}</span>
+                        <div onclick="switchSession('${item.filename}')" class="cursor-pointer p-3 rounded-r-lg transition-colors ${activeClass} group">
+                            <div class="flex justify-between items-center mb-1">
+                                <span class="font-bold text-gray-200 text-sm truncate w-32">${displayName}</span>
+                                <span class="text-[10px] text-gray-600">${time}</span>
                             </div>
-                            <div class="text-gray-300 whitespace-pre-wrap break-words leading-relaxed max-h-32 overflow-hidden text-ellipsis">${item.content}</div>
+                            <div class="text-xs text-gray-500 truncate group-hover:text-gray-400">${item.preview}</div>
                         </div>
                     `;
                 }).join('');
 
             } catch (e) {
-                list.innerHTML = `<div class="text-center text-red-400 text-sm mt-4">加载失败: ${e}</div>`;
+                list.innerHTML = `<div class="text-center text-red-400 text-sm mt-4">加载失败</div>`;
+            }
+        }
+
+        async function switchSession(filename) {
+            try {
+                await apiFetch('/api/switch_session', {
+                    method: 'POST',
+                    body: JSON.stringify({ filename: filename })
+                });
+                toggleSidebar(); // 关闭侧边栏
+                await loadConfig(); // 重新加载配置
+                await refreshNovel(); // 刷新主界面内容
+            } catch(e) {
+                alert("切换失败: " + e);
             }
         }
 

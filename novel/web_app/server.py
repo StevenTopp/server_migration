@@ -308,7 +308,7 @@ async def auto_rename(username: str = Depends(get_current_user)):
 
     try:
         content = path.read_text(encoding="utf-8")[:3000]
-        if len(content) < 50:
+        if len(content) < 1000:
              return {"status": "skipped", "reason": "content too short"}
 
         client = get_openai_client(config)
@@ -442,22 +442,59 @@ async def generate_novel(req: GenerateRequest, username: str = Depends(get_curre
 
     return StreamingResponse(stream_generator(), media_type="text/event-stream")
 
-@app.post("/api/history")
-async def get_history(username: str = Depends(get_current_user)):
+@app.post("/api/sessions")
+async def get_sessions(username: str = Depends(get_current_user)):
+    user_data_dir = DATA_ROOT / username
+    if not user_data_dir.exists():
+        return {"sessions": []}
+
+    sessions = []
+    # 遍历所有 txt 文件
+    for file in user_data_dir.glob("*.txt"):
+        try:
+            stat = file.stat()
+            # 获取对应的 json 历史，尝试读取最后一条互动时间，或者文件修改时间
+            json_path = file.with_suffix(".json")
+            last_msg = ""
+            if json_path.exists():
+                try:
+                    history = json.loads(json_path.read_text(encoding="utf-8"))
+                    if history:
+                        last_msg = history[-1].get("content", "")[:50] + "..."
+                except: pass
+
+            sessions.append({
+                "filename": file.name,
+                "path": str(file),
+                "updated_at": stat.st_mtime,
+                "preview": last_msg or "(无历史记录)",
+                "size": stat.st_size
+            })
+        except Exception as e:
+            print(f"Error reading session {file}: {e}")
+
+    # 按时间倒序排序
+    sessions.sort(key=lambda x: x["updated_at"], reverse=True)
+    return {"sessions": sessions}
+
+@app.post("/api/switch_session")
+async def switch_session(req: dict, username: str = Depends(get_current_user)):
+    filename = req.get("filename")
+    if not filename:
+        raise HTTPException(status_code=400, detail="Missing filename")
+
+    user_data_dir = DATA_ROOT / username
+    target_path = user_data_dir / filename
+
+    if not target_path.exists():
+        raise HTTPException(status_code=404, detail="Session file not found")
+
+    # 更新用户配置指向该文件
     config = get_user_config(username)
-    path = Path(config["file_path"])
-    json_path = path.with_suffix(".json")
+    config["file_path"] = str(target_path)
+    save_base_config_only(username, config)
 
-    if not json_path.exists():
-        return {"history": []}
-
-    try:
-        history = json.loads(json_path.read_text(encoding="utf-8"))
-        # 倒序排列，最新的在最前
-        return {"history": history[::-1]}
-    except Exception as e:
-        print(f"Error reading history: {e}")
-        return {"history": []}
+    return {"status": "ok", "path": str(target_path)}
 
 @app.post("/api/save")
 async def save_novel(req: SaveRequest, username: str = Depends(get_current_user)):
