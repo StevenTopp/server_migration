@@ -246,6 +246,16 @@
                     <label class="block text-gray-400 mb-1">默认用户指令</label>
                     <textarea id="cfg_user" rows="2" class="w-full bg-gray-800 border border-gray-600 rounded p-2 text-gray-300 focus:outline-none focus:border-blue-500"></textarea>
                 </div>
+                <div class="pt-2 border-t border-gray-700/50">
+                    <div class="flex items-center gap-2 mb-2">
+                        <input type="checkbox" id="cfg_free_mode" onchange="toggleFreeMode()" class="w-4 h-4 rounded bg-gray-800 border-gray-600 text-blue-600 focus:ring-blue-500">
+                        <label for="cfg_free_mode" class="text-gray-400 select-none font-bold">启用自由创作模式</label>
+                    </div>
+                    <div id="freeModeArea" class="hidden pl-6 border-l-2 border-blue-500/30">
+                        <label class="block text-gray-400 mb-1 text-xs">Free Create Prompt (替代原 System Prompt)</label>
+                        <textarea id="cfg_free_prompt" rows="3" class="w-full bg-gray-800 border border-gray-600 rounded p-2 text-gray-300 focus:outline-none focus:border-blue-500" placeholder="设定你的自由创作助手..."></textarea>
+                    </div>
+                </div>
             </div>
             <div class="mt-6 flex justify-end gap-3">
                 <button onclick="toggleConfig()" class="px-4 py-2 rounded text-gray-300 hover:bg-gray-700">取消</button>
@@ -494,6 +504,12 @@
         }
         function toggleModelList(e) { if(e) e.stopPropagation(); document.getElementById('modelList').classList.toggle('hidden'); }
         function selectModel(model) { document.getElementById('cfg_model').value = model; document.getElementById('modelList').classList.add('hidden'); }
+        function toggleFreeMode() {
+            const isFree = document.getElementById('cfg_free_mode').checked;
+            const area = document.getElementById('freeModeArea');
+            if (isFree) area.classList.remove('hidden');
+            else area.classList.add('hidden');
+        }
 
         async function loadConfig() {
             try {
@@ -503,6 +519,9 @@
                 document.getElementById('cfg_model').value = currentConfig.model;
                 document.getElementById('cfg_sys').value = currentConfig.system_prompt_prefix;
                 document.getElementById('cfg_user').value = currentConfig.user_prompt;
+                document.getElementById('cfg_free_mode').checked = currentConfig.free_create_mode || false;
+                document.getElementById('cfg_free_prompt').value = currentConfig.freecreate_prompt || "";
+                toggleFreeMode();
                 document.getElementById('promptInput').placeholder = `默认: ${currentConfig.user_prompt.slice(0, 15)}...`;
             } catch(e) {}
         }
@@ -510,7 +529,9 @@
             const newConfig = {
                 file_path: currentConfig.file_path, api_key: currentConfig.api_key,
                 base_url: document.getElementById('cfg_url').value, model: document.getElementById('cfg_model').value,
-                system_prompt_prefix: document.getElementById('cfg_sys').value, user_prompt: document.getElementById('cfg_user').value
+                system_prompt_prefix: document.getElementById('cfg_sys').value, user_prompt: document.getElementById('cfg_user').value,
+                free_create_mode: document.getElementById('cfg_free_mode').checked,
+                freecreate_prompt: document.getElementById('cfg_free_prompt').value
             };
             await apiFetch('/api/config', { method: 'POST', body: JSON.stringify(newConfig) });
             toggleConfig(); loadConfig();

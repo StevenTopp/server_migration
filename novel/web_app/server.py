@@ -15,6 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from openai import AsyncOpenAI
+import free_create_mode
 
 # ================= 全局配置 & 路径 =================
 BASE_DIR = Path(r"/home/server_migration/novel")
@@ -82,6 +83,8 @@ class ConfigRequest(BaseModel):
     model: str
     system_prompt_prefix: str
     user_prompt: str
+    free_create_mode: Optional[bool] = False
+    freecreate_prompt: Optional[str] = ""
     # file_path 不允许用户直接通过 config 接口随意修改到其他目录，由后端控制
 
 # ================= 工具函数 =================
@@ -113,7 +116,9 @@ def get_user_prompts(username: str):
     prompt_path = PROMPT_DATA_ROOT / f"{username}.json"
     default_prompts = {
         "system_prompt_prefix": "创作小说，重情节连贯，丰富人物互动细节，增加环境与心理描写，语言生动细腻，逐步推进剧情发展，使故事更具代入感与张力。",
-        "user_prompt": "每次生成约3000字正文，并在结尾给出下一章节的3条简短剧情建议（20字以内）。"
+        "user_prompt": "每次生成约3000字正文，并在结尾给出下一章节的3条简短剧情建议（20字以内）。",
+        "free_create_mode": False,
+        "freecreate_prompt": "你是一个自由创作助手，请根据用户的指示进行创作。"
     }
     if prompt_path.exists():
         try:
@@ -180,7 +185,9 @@ def save_user_config_split(username: str, full_config: dict):
     # 1. 保存 Prompt
     prompts = {
         "system_prompt_prefix": full_config.get("system_prompt_prefix"),
-        "user_prompt": full_config.get("user_prompt")
+        "user_prompt": full_config.get("user_prompt"),
+        "free_create_mode": full_config.get("free_create_mode"),
+        "freecreate_prompt": full_config.get("freecreate_prompt")
     }
     save_user_prompts(username, prompts)
 
@@ -378,6 +385,20 @@ async def generate_outline(req: OutlineRequest, username: str = Depends(get_curr
     # User Prompt 留空或简单的触发词
     user_content = "请根据上述设定开始生成。"
 
+    # 检查是否开启自由创作模式
+    messages = []
+    if config.get("free_create_mode"):
+         print(f"[{username}] 使用自由创作模式生成大纲...")
+         messages = free_create_mode.build_outline_messages(
+             freecreate_prompt=config.get("freecreate_prompt", ""),
+             outline_requirements=outline_requirements
+         )
+    else:
+        messages = [
+            {"role": "system", "content": final_system_prompt},
+            {"role": "user", "content": user_content}
+        ]
+
     print(f"[{username}] 生成大纲中... 目标: {new_file_path}")
     client = get_openai_client(config)
 
@@ -387,10 +408,7 @@ async def generate_outline(req: OutlineRequest, username: str = Depends(get_curr
             # ✅ 使用异步流
             stream = await client.chat.completions.create(
                 model=config["model"],
-                messages=[
-                    {"role": "system", "content": final_system_prompt},
-                    {"role": "user", "content": user_content}
-                ],
+                messages=messages,
                 temperature=0.9,
                 max_tokens=8192,
                 stream=True
@@ -418,6 +436,20 @@ async def generate_novel(req: GenerateRequest, username: str = Depends(get_curre
     system_prompt = f"{HIDDEN_PROMPT}\n{config['system_prompt_prefix']}\n\n当前小说内容(截取末尾)：\n{context[-8000:]}"
     user_prompt = req.user_prompt if req.user_prompt else config["user_prompt"]
 
+    messages = []
+    if config.get("free_create_mode"):
+        print(f"[{username}] 使用自由创作模式续写...")
+        messages = free_create_mode.build_generate_messages(
+            freecreate_prompt=config.get("freecreate_prompt", ""),
+            context=context[-8000:], # 同样截取末尾 context
+            user_prompt=user_prompt
+        )
+    else:
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ]
+
     print(f"[{username}] 续写中(Streaming)...")
     client = get_openai_client(config)
 
@@ -426,10 +458,7 @@ async def generate_novel(req: GenerateRequest, username: str = Depends(get_curre
             # ✅ 使用异步流
             stream = await client.chat.completions.create(
                 model=config["model"],
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
-                ],
+                messages=messages,
                 temperature=0.9,
                 max_tokens=8192,
                 stream=True
