@@ -304,15 +304,21 @@ async def generate_outline(req: OutlineRequest, username: str = Depends(get_curr
     user_data_dir.mkdir(parents=True, exist_ok=True)
     new_file_path = user_data_dir / f"{timestamp}.txt"
 
-    system_instruction = config['system_prompt_prefix']
-    user_instruction = (
-        f"任务：创建小说大纲\n"
+    # 将大纲要求拼接到 System Prompt 中，以获得更高权重
+    base_system = config['system_prompt_prefix']
+    outline_requirements = (
+        f"\n\n任务：创建小说大纲\n"
         f"主角：{req.protagonist} (年龄: {req.age})\n"
         f"风格：{req.style}\n"
         f"预期字数：{req.word_count}\n"
         f"故事梗概/走向：{req.plot}\n\n"
         f"请生成详细的故事大纲、人物小传以及第一章的开篇草稿。"
     )
+
+    final_system_prompt = base_system + outline_requirements
+
+    # User Prompt 留空或简单的触发词
+    user_content = "请根据上述设定开始生成。"
 
     print(f"[{username}] 生成大纲中... 目标: {new_file_path}")
     client = get_openai_client(config)
@@ -324,8 +330,8 @@ async def generate_outline(req: OutlineRequest, username: str = Depends(get_curr
             stream = await client.chat.completions.create(
                 model=config["model"],
                 messages=[
-                    {"role": "system", "content": system_instruction},
-                    {"role": "user", "content": user_instruction}
+                    {"role": "system", "content": final_system_prompt},
+                    {"role": "user", "content": user_content}
                 ],
                 temperature=0.9,
                 max_tokens=8192,
