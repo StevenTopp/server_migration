@@ -16,7 +16,7 @@ from pydantic import BaseModel
 from openai import OpenAI
 
 # ================= 全局配置 & 路径 =================
-BASE_DIR = Path(r"D:\Code\Project\server_migration\novel")
+BASE_DIR = Path(r"/home/server_migration/novel")
 DATA_ROOT = BASE_DIR / "data"
 CONFIG_ROOT = BASE_DIR / "configs"
 USERS_FILE = BASE_DIR / "users.json"
