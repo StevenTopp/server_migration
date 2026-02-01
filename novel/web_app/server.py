@@ -459,6 +459,8 @@ async def generate_novel(req: GenerateRequest, username: str = Depends(get_curre
             context=context[-32000:], # 同样截取末尾 context
             user_prompt=user_prompt
         )
+        # 打印 prompt 以便于调试
+        print(f"DEBUG Free Mode Messages: {json.dumps(messages, ensure_ascii=False, indent=2)}")
     else:
         messages = [
             {"role": "system", "content": system_prompt},
