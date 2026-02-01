@@ -138,6 +138,10 @@ def get_user_prompts(username: str):
             if "pre_hidden_freecreate_prompt" in saved_prompts and not saved_prompts["pre_hidden_freecreate_prompt"]:
                 del saved_prompts["pre_hidden_freecreate_prompt"]
 
+            # 修复：如果存档中的 post_hidden_freecreate_prompt 为空，不要覆盖默认值
+            if "post_hidden_freecreate_prompt" in saved_prompts and not saved_prompts["post_hidden_freecreate_prompt"]:
+                del saved_prompts["post_hidden_freecreate_prompt"]
+
             default_prompts.update(saved_prompts)
         except: pass
     return default_prompts

@@ -18,8 +18,8 @@ def build_generate_messages(
     """
     parts = []
 
-    # 1. Pre Prompt (仅第一次/无上下文时)
-    if not context and pre_hidden_freecreate_prompt:
+    # 1. Pre Prompt (始终添加，作为 System 开头，确保强指令生效)
+    if pre_hidden_freecreate_prompt:
         parts.append(pre_hidden_freecreate_prompt)
 
     # 2. Free Prompt
