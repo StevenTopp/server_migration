@@ -772,5 +772,5 @@ async def switch_file(req: dict, username: str = Depends(get_current_user)):
     return {"status": "ok", "path": str(safe_path)}
 
 if __name__ == "__main__":
-    print(f"启动服务: http://localhost:8000/static/login.html")
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    print(f"启动服务: http://localhost:6000/static/login.html")
+    uvicorn.run(app, host="0.0.0.0", port=6000)
