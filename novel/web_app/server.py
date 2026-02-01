@@ -141,7 +141,7 @@ def get_user_config(username: str):
     default_config = {
         "base_url": "http://127.0.0.1:19000/v1",
         "api_key": "sk-c14a5dd7304f458fbc49acfd9889e74f",
-        "model": "gemini-2.5-flash",
+        "model": "gemini-3-flash",
         "file_path": ""
     }
 
