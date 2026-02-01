@@ -314,9 +314,17 @@
                     <div id="btnLoader" class="loader hidden"></div>
                 </button>
 
-                <button id="stopBtn" onclick="stopGeneration()" class="hidden absolute inset-0 bg-gray-200 hover:bg-gray-300 text-gray-900 rounded-xl flex flex-row items-center justify-center gap-1 shadow-lg shadow-white/5 transition-colors z-10">
-                    <span class="text-lg font-bold">||</span>
-                    <span class="text-sm font-medium">暂停</span>
+                <button id="stopBtn" onclick="stopGeneration()"
+                  class="hidden absolute inset-0 rounded-xl flex items-center justify-center gap-2 z-10
+                         bg-red-500/15 text-red-200 border border-red-400/20
+                         backdrop-blur-md shadow-lg shadow-red-500/10
+                         hover:bg-red-500/22 hover:border-red-300/30
+                         active:scale-[0.98] transition-all">
+                  <!-- icon -->
+                  <span class="w-6 h-6 rounded-full grid place-items-center bg-red-500/20 border border-red-300/20">
+                    <span class="block w-2.5 h-2.5 rounded-sm bg-red-200/90"></span>
+                  </span>
+                  <span class="text-sm font-semibold tracking-wide">暂停</span>
                 </button>
             </div>
         </div>
