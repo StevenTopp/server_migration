@@ -396,6 +396,15 @@
 
             const cardId = createResultCard(cardTitle);
             const card = document.getElementById(cardId);
+
+            // 📝 暂存本次的用户 Prompt，以便保存时回传
+            if (body.user_prompt) {
+                card.dataset.prompt = body.user_prompt;
+            } else if (isOutline) {
+                // 如果是大纲模式，把关键参数拼一下作为 Prompt 记录
+                card.dataset.prompt = `[大纲生成] 主角:${body.protagonist} 风格:${body.style}`;
+            }
+
             const contentDiv = card.querySelector('.content-text');
             const rawDiv = card.querySelector('.raw-text');
             contentDiv.classList.add('cursor-blink');
@@ -591,57 +600,56 @@
         async function saveText(cardId) {
             const card = document.getElementById(cardId);
             const text = card.querySelector('.raw-text').innerText;
-            await executeSave(card, text);
+            // 获取暂存的 prompt
+            const prompt = card.dataset.prompt || "";
+            await executeSave(card, text, prompt);
         }
 
         async function saveOutline(cardId, targetPath) {
             const card = document.getElementById(cardId);
             const text = card.querySelector('.raw-text').innerText;
+            const prompt = card.dataset.prompt || "";
             const btn = card.querySelector('.float-actions button:last-child');
             btn.innerText = "创建中..."; btn.disabled = true;
 
             try {
-                // 1. 切换文件
                 await apiFetch('/api/switch_file', {
                     method: 'POST',
                     body: JSON.stringify({ target_path: targetPath })
                 });
 
-                // 2. 保存内容
                 const res = await apiFetch('/api/save', {
                     method: 'POST',
-                    body: JSON.stringify({ content: text })
+                    body: JSON.stringify({ content: text, prompt: prompt })
                 });
                 const data = await res.json();
 
                 if (data.status === 'saved') {
-                    // 记录 block_id 以便后续撤销
                     card.dataset.blockId = data.block_id;
                     markCardSaved(card);
-                    await refreshNovel(); // 等待刷新完成
+                    await refreshNovel();
                     setTimeout(checkAutoRename, 1000);
                 }
-
             } catch (e) {
                 alert("保存失败: " + e);
                 btn.innerText = "重试"; btn.disabled = false;
             }
         }
 
-        async function executeSave(card, text) {
+        async function executeSave(card, text, prompt) {
             const btn = card.querySelector('.float-actions button:last-child');
             btn.innerText = "写入中..."; btn.disabled = true;
             try {
                 const res = await apiFetch('/api/save', {
                     method: 'POST',
-                    body: JSON.stringify({ content: text })
+                    body: JSON.stringify({ content: text, prompt: prompt })
                 });
                 const data = await res.json();
 
                 if (data.status === 'saved') {
-                    card.dataset.blockId = data.block_id; // 绑定 ID
+                    card.dataset.blockId = data.block_id;
                     markCardSaved(card);
-                    await refreshNovel(); // 等待刷新完成
+                    await refreshNovel();
                     setTimeout(checkAutoRename, 1000);
                 }
             } catch (e) {
