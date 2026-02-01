@@ -400,15 +400,79 @@
 
         async function switchSession(filename) {
             try {
+                // 1. 切换后端文件
                 await apiFetch('/api/switch_session', {
                     method: 'POST',
                     body: JSON.stringify({ filename: filename })
                 });
                 toggleSidebar(); // 关闭侧边栏
-                await loadConfig(); // 重新加载配置
-                await refreshNovel(); // 刷新主界面内容
+                await loadConfig(); // 刷新配置（路径）
+                await refreshNovel(); // 刷新顶部文本
+
+                // 2. 加载并还原对话历史
+                await restoreChatHistory();
+
             } catch(e) {
                 alert("切换失败: " + e);
+            }
+        }
+
+        async function restoreChatHistory() {
+            const chatArea = document.getElementById('chatArea');
+            chatArea.innerHTML = '<div class="text-center text-gray-600 text-sm py-4"><span class="animate-spin inline-block">↻</span> 正在恢复现场...</div>';
+
+            try {
+                // 获取历史记录
+                const res = await apiFetch('/api/history', { method: 'POST' });
+                const data = await res.json();
+                chatArea.innerHTML = ''; // 清空加载提示
+
+                if (!data.history || data.history.length === 0) return;
+
+                // 历史记录目前是倒序的 (最新的在前)，我们需要正序渲染
+                // 或者后端改一下？目前后端是 history[::-1]
+                // 我们在前端 reverse 回来，变成 [最早, ..., 最新]
+                const timeline = data.history.reverse();
+
+                // 遍历重建卡片
+                // 注意：历史记录里 user 和 assistant 是分开的 block
+                // 我们需要把它们组合展示，或者直接按 block 渲染
+                // 现在的逻辑是：每个 block (无论是 user 还是 assistant) 都渲染为一个卡片？
+                // 不，我们的 UI 是：
+                // User Prompt -> (无卡片，直接发给后端) -> AI 生成卡片 (包含 Prompt)
+                // 所以我们主要关心 assistant 的 block，因为它包含了 content 和对应的 prompt
+
+                for (const item of timeline) {
+                    if (item.status === 'discarded') continue; // 跳过已丢弃的
+
+                    // 只渲染 assistant 类型的 block，因为其中包含了当时的 user prompt
+                    // 如果有独立的 user block，我们可以选择忽略，或者单独渲染
+                    // 之前的逻辑是 save 时存了 prompt 字段在 assistant block 里
+
+                    if (item.role === 'assistant') {
+                        // 恢复卡片
+                        const cardId = createResultCard(item.prompt || "续写内容");
+                        const card = document.getElementById(cardId);
+
+                        // 填充内容
+                        const contentDiv = card.querySelector('.content-text');
+                        contentDiv.innerHTML = marked.parse(item.content);
+                        card.querySelector('.raw-text').innerText = item.content;
+
+                        // 标记为已保存
+                        card.dataset.blockId = item.id;
+                        card.dataset.prompt = item.prompt;
+                        markCardSaved(card);
+                    }
+                }
+
+                // 滚动到底部
+                setTimeout(() => {
+                    chatArea.lastElementChild?.scrollIntoView({ behavior: 'smooth' });
+                }, 100);
+
+            } catch (e) {
+                chatArea.innerHTML = `<div class="text-center text-red-500 text-sm py-4">历史加载失败: ${e}</div>`;
             }
         }
 
@@ -556,6 +620,9 @@
 
         async function createOutline() {
             hideNewNovel();
+            // 清空当前对话界面
+            document.getElementById('chatArea').innerHTML = '';
+
             const req = {
                 protagonist: document.getElementById('new_name').value, age: document.getElementById('new_age').value,
                 style: document.getElementById('new_style').value, plot: document.getElementById('new_plot').value,
