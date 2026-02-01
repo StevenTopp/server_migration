@@ -20,11 +20,13 @@ from openai import AsyncOpenAI
 BASE_DIR = Path(r"/home/server_migration/novel")
 DATA_ROOT = BASE_DIR / "data"
 CONFIG_ROOT = BASE_DIR / "configs"
+PROMPT_DATA_ROOT = BASE_DIR / "prompt_data"
 USERS_FILE = BASE_DIR / "users.json"
 
 # 确保目录存在
 DATA_ROOT.mkdir(parents=True, exist_ok=True)
 CONFIG_ROOT.mkdir(parents=True, exist_ok=True)
+PROMPT_DATA_ROOT.mkdir(parents=True, exist_ok=True)
 
 # 内存中的 Session 存储 (Token -> Username)
 # 重启后需要重新登录，轻量级方案
@@ -106,46 +108,84 @@ def verify_password(stored_hash, stored_salt, provided_password):
     pwd_hash, _ = hash_password(provided_password, stored_salt)
     return secrets.compare_digest(pwd_hash, stored_hash)
 
-# 获取用户专属配置
+# 获取用户 Prompt 配置
+def get_user_prompts(username: str):
+    prompt_path = PROMPT_DATA_ROOT / f"{username}.json"
+    default_prompts = {
+        "system_prompt_prefix": "续写小说，详细描述互动细节，并增加描述词，逐步推进小说剧情，",
+        "user_prompt": "每次生成6000字，并在最后给出下一章节1条20字建议"
+    }
+    if prompt_path.exists():
+        try:
+            saved_prompts = json.loads(prompt_path.read_text(encoding='utf-8'))
+            default_prompts.update(saved_prompts)
+        except: pass
+    return default_prompts
+
+def save_user_prompts(username: str, prompts: dict):
+    prompt_path = PROMPT_DATA_ROOT / f"{username}.json"
+    prompt_path.write_text(json.dumps(prompts, indent=2), encoding='utf-8')
+
+# 获取用户专属配置 (合并 Config 和 Prompt)
 def get_user_config(username: str):
     config_path = CONFIG_ROOT / f"{username}.json"
 
-    # 默认配置模板
-    user_data_dir = DATA_ROOT / username
-    user_data_dir.mkdir(exist_ok=True)
-
+    # 基础配置 (API相关)
     default_config = {
         "base_url": "http://127.0.0.1:19000/v1",
         "api_key": "sk-c14a5dd7304f458fbc49acfd9889e74f",
         "model": "gemini-3-pro",
-        "system_prompt_prefix": "续写小说，详细描述互动细节，并增加描述词，逐步推进小说剧情，",
-        "user_prompt": "每次生成6000字，并在最后给出下一章节1条20字建议",
-        "file_path": "" # 初始为空，由逻辑控制生成
+        "file_path": ""
     }
 
     if config_path.exists():
         try:
             saved_config = json.loads(config_path.read_text(encoding='utf-8'))
+            # 过滤掉旧版本可能残留的 prompt 字段，以 prompt_data 为准
+            if "system_prompt_prefix" in saved_config: del saved_config["system_prompt_prefix"]
+            if "user_prompt" in saved_config: del saved_config["user_prompt"]
             default_config.update(saved_config)
-        except:
-            pass
+        except: pass
 
-    # 确保 file_path 指向该用户的目录
-    current_path = Path(default_config["file_path"]) if default_config["file_path"] else None
+    # 获取 Prompt 配置
+    prompts = get_user_prompts(username)
 
-    # 如果路径为空，或者路径不在用户目录下（防止越权），则重置为新文件
+    # 合并返回
+    full_config = {**default_config, **prompts}
+
+    # 路径检查逻辑...
+    user_data_dir = DATA_ROOT / username
+    user_data_dir.mkdir(exist_ok=True)
+    current_path = Path(full_config["file_path"]) if full_config["file_path"] else None
+
     if not current_path or not str(current_path).startswith(str(user_data_dir)):
         timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
         new_file = user_data_dir / f"{timestamp}.txt"
-        default_config["file_path"] = str(new_file)
-        # 保存修正后的配置
-        config_path.write_text(json.dumps(default_config, indent=2), encoding='utf-8')
+        full_config["file_path"] = str(new_file)
+        # 只保存基础配置部分
+        save_base_config_only(username, full_config)
 
-    return default_config
+    return full_config
 
-def save_user_config(username: str, config: dict):
+def save_base_config_only(username: str, full_config: dict):
+    # 只提取基础配置字段保存到 configs/
+    base_keys = ["base_url", "api_key", "model", "file_path"]
+    base_config = {k: full_config.get(k) for k in base_keys}
+
     config_path = CONFIG_ROOT / f"{username}.json"
-    config_path.write_text(json.dumps(config, indent=2), encoding='utf-8')
+    config_path.write_text(json.dumps(base_config, indent=2), encoding='utf-8')
+
+# 原 save_user_config 废弃，改用拆分保存逻辑
+def save_user_config_split(username: str, full_config: dict):
+    # 1. 保存 Prompt
+    prompts = {
+        "system_prompt_prefix": full_config.get("system_prompt_prefix"),
+        "user_prompt": full_config.get("user_prompt")
+    }
+    save_user_prompts(username, prompts)
+
+    # 2. 保存基础配置
+    save_base_config_only(username, full_config)
 
 def get_openai_client(config):
     # ✅ 使用 AsyncOpenAI
@@ -232,11 +272,12 @@ async def update_config(config: ConfigRequest, username: str = Depends(get_curre
     new_config_dict = config.dict()
     new_config_dict["file_path"] = old_config["file_path"] # 强制保留原路径
 
-    save_user_config(username, new_config_dict)
+    # ✅ 使用拆分保存逻辑
+    save_user_config_split(username, new_config_dict)
     return {"status": "updated", "config": new_config_dict}
 
 @app.get("/api/novel")
-async def get_novel_content(username: str = Depends(get_current_user)):
+async def get_novel_content(full: bool = False, username: str = Depends(get_current_user)):
     config = get_user_config(username)
     path = Path(config["file_path"])
 
@@ -244,6 +285,9 @@ async def get_novel_content(username: str = Depends(get_current_user)):
         return {"content": "", "path": str(path), "full_length": 0}
     try:
         content = path.read_text(encoding="utf-8")
+        if full:
+             return {"content": content, "full_length": len(content), "path": str(path)}
+
         preview = content[-2000:] if len(content) > 2000 else content
         return {"content": preview, "full_length": len(content), "path": str(path)}
     except Exception as e:
@@ -296,7 +340,7 @@ async def auto_rename(username: str = Depends(get_current_user)):
 
         # 更新配置中的路径
         config["file_path"] = str(new_path)
-        save_user_config(username, config)
+        save_base_config_only(username, config) # 重命名只影响基础配置
 
         return {"status": "renamed", "new_name": new_title, "new_path": str(new_path)}
 
@@ -545,7 +589,7 @@ async def switch_file(req: dict, username: str = Depends(get_current_user)):
          pass
 
     config["file_path"] = str(safe_path)
-    save_user_config(username, config)
+    save_base_config_only(username, config) # 切换文件只影响基础配置
     return {"status": "ok", "path": str(safe_path)}
 
 if __name__ == "__main__":
