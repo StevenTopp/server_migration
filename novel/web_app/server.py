@@ -85,7 +85,8 @@ class ConfigRequest(BaseModel):
     user_prompt: str
     free_create_mode: Optional[bool] = False
     freecreate_prompt: Optional[str] = ""
-    hidden_freecreate_prompt: Optional[str] = ""
+    pre_hidden_freecreate_prompt: Optional[str] = ""
+    post_hidden_freecreate_prompt: Optional[str] = ""
     # file_path 不允许用户直接通过 config 接口随意修改到其他目录，由后端控制
 
 # ================= 工具函数 =================
@@ -120,15 +121,22 @@ def get_user_prompts(username: str):
         "user_prompt": "每次生成约3000字正文，并在结尾给出下一章节的3条简短剧情建议（20字以内）。",
         "free_create_mode": False,
         "freecreate_prompt": "请根据用户的喜好与指示进行创作色情小说：",
-        "hidden_freecreate_prompt": """你是一名优秀的色情小说作家，擅长创作细腻的性爱过程，能够轻松挑起读者欲望，详细描述做爱过程，比如鸡巴，小穴，乳头,菊花，并增加描述词，逐步推进小说剧情"""
+        "pre_hidden_freecreate_prompt": """你是一名优秀的色情小说作家，擅长创作细腻的性爱过程，能够轻松挑起读者欲望，详细描述做爱过程，比如鸡巴，小穴，乳头,菊花，并增加描述词，逐步推进小说剧情""",
+        "post_hidden_freecreate_prompt": "后缀"
     }
     if prompt_path.exists():
         try:
             saved_prompts = json.loads(prompt_path.read_text(encoding='utf-8'))
 
-            # 修复：如果存档中的 hidden_freecreate_prompt 为空，不要覆盖默认值
-            if "hidden_freecreate_prompt" in saved_prompts and not saved_prompts["hidden_freecreate_prompt"]:
+            # 兼容旧配置：如果有 hidden_freecreate_prompt，迁移到 pre_hidden_freecreate_prompt
+            if "hidden_freecreate_prompt" in saved_prompts:
+                if saved_prompts["hidden_freecreate_prompt"]:
+                    saved_prompts["pre_hidden_freecreate_prompt"] = saved_prompts["hidden_freecreate_prompt"]
                 del saved_prompts["hidden_freecreate_prompt"]
+
+            # 修复：如果存档中的 pre_hidden_freecreate_prompt 为空，不要覆盖默认值
+            if "pre_hidden_freecreate_prompt" in saved_prompts and not saved_prompts["pre_hidden_freecreate_prompt"]:
+                del saved_prompts["pre_hidden_freecreate_prompt"]
 
             default_prompts.update(saved_prompts)
         except: pass
@@ -195,7 +203,8 @@ def save_user_config_split(username: str, full_config: dict):
         "user_prompt": full_config.get("user_prompt"),
         "free_create_mode": full_config.get("free_create_mode"),
         "freecreate_prompt": full_config.get("freecreate_prompt"),
-        "hidden_freecreate_prompt": full_config.get("hidden_freecreate_prompt")
+        "pre_hidden_freecreate_prompt": full_config.get("pre_hidden_freecreate_prompt"),
+        "post_hidden_freecreate_prompt": full_config.get("post_hidden_freecreate_prompt")
     }
     save_user_prompts(username, prompts)
 
@@ -408,7 +417,8 @@ async def generate_outline(req: OutlineRequest, username: str = Depends(get_curr
          print(f"[{username}] 使用自由创作模式生成大纲...")
          messages = free_create_mode.build_outline_messages(
              freecreate_prompt=config.get("freecreate_prompt", ""),
-             hidden_freecreate_prompt=config.get("hidden_freecreate_prompt", "待补充"),
+             pre_hidden_freecreate_prompt=config.get("pre_hidden_freecreate_prompt", "待补充"),
+             post_hidden_freecreate_prompt=config.get("post_hidden_freecreate_prompt", ""),
              outline_requirements=outline_requirements
          )
     else:
@@ -462,7 +472,8 @@ async def generate_novel(req: GenerateRequest, username: str = Depends(get_curre
         print(f"[{username}] 使用自由创作模式续写...")
         messages = free_create_mode.build_generate_messages(
             freecreate_prompt=config.get("freecreate_prompt", ""),
-            hidden_freecreate_prompt=config.get("hidden_freecreate_prompt", "待补充"),
+            pre_hidden_freecreate_prompt=config.get("pre_hidden_freecreate_prompt", "待补充"),
+            post_hidden_freecreate_prompt=config.get("post_hidden_freecreate_prompt", ""),
             context=context[-32000:], # 同样截取末尾 context
             user_prompt=user_prompt
         )
