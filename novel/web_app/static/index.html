@@ -43,13 +43,20 @@
             overflow: hidden;
         }
         .header-collapsed {
-            max-height: 24px !important; /* 吸附时的高度 */
+            /* 关键：使用 max-height 动画，但要保留少量高度给把手 */
+            max-height: 24px !important;
             padding-top: 0 !important;
             padding-bottom: 0 !important;
             opacity: 0.8;
             cursor: pointer;
             border-bottom-color: transparent !important;
-            background: rgba(24, 24, 27, 0.6) !important; /* 稍微透明一点 */
+            background: rgba(24, 24, 27, 0.6) !important;
+            overflow: hidden !important; /* 强制隐藏内部内容 */
+        }
+        /* 全文展开态 */
+        .preview-expanded {
+            max-height: none !important; /* 允许无限高 */
+            overflow-y: visible !important;
         }
         .header-collapsed:hover {
             opacity: 1;
@@ -518,14 +525,18 @@
         function togglePreview() {
             const el = document.getElementById('novelPreview');
             const icon = document.getElementById('previewToggleIcon');
+
+            // 检查当前是否是“预览态” (有 max-h-[3em] 类)
             if (el.classList.contains('max-h-[3em]')) {
+                // -> 切换到“全文态”
                 el.classList.remove('max-h-[3em]', 'overflow-hidden');
-                el.classList.add('max-h-64', 'overflow-y-auto');
+                el.classList.add('max-h-[60vh]', 'overflow-y-auto'); // 限制最大高度，避免撑爆屏幕
                 icon.innerText = "▲";
                 icon.classList.add('text-blue-500');
             } else {
+                // -> 切换回“预览态”
                 el.classList.add('max-h-[3em]', 'overflow-hidden');
-                el.classList.remove('max-h-64', 'overflow-y-auto');
+                el.classList.remove('max-h-[60vh]', 'overflow-y-auto');
                 el.scrollTop = 0;
                 icon.innerText = "▼";
                 icon.classList.remove('text-blue-500');
