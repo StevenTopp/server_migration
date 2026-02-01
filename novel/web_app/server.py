@@ -423,7 +423,8 @@ async def generate_outline(req: OutlineRequest, username: str = Depends(get_curr
                 model=config["model"],
                 messages=messages,
                 temperature=0.9,
-                max_tokens=8192,
+                top_p=1,
+                max_tokens=100000,
                 stream=True
             )
             async for chunk in stream:
@@ -446,7 +447,7 @@ async def generate_novel(req: GenerateRequest, username: str = Depends(get_curre
 
     # 隐藏的专家设定
     HIDDEN_PROMPT = "你是一名专业的作家，擅长小说创作。"
-    system_prompt = f"{HIDDEN_PROMPT}\n{config['system_prompt_prefix']}\n\n当前小说内容(截取末尾)：\n{context[-8000:]}"
+    system_prompt = f"{HIDDEN_PROMPT}\n{config['system_prompt_prefix']}\n\n当前小说内容(截取末尾)：\n{context[-15000:]}"
     user_prompt = req.user_prompt if req.user_prompt else config["user_prompt"]
 
     messages = []
@@ -455,7 +456,7 @@ async def generate_novel(req: GenerateRequest, username: str = Depends(get_curre
         messages = free_create_mode.build_generate_messages(
             freecreate_prompt=config.get("freecreate_prompt", ""),
             hidden_freecreate_prompt=config.get("hidden_freecreate_prompt", "待补充"),
-            context=context[-8000:], # 同样截取末尾 context
+            context=context[-15000:], # 同样截取末尾 context
             user_prompt=user_prompt
         )
     else:
@@ -474,7 +475,8 @@ async def generate_novel(req: GenerateRequest, username: str = Depends(get_curre
                 model=config["model"],
                 messages=messages,
                 temperature=0.9,
-                max_tokens=8192,
+                top_p=1,
+                max_tokens=100000,
                 stream=True
             )
             async for chunk in stream:

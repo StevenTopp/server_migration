@@ -23,7 +23,7 @@ def build_generate_messages(
     messages = [
         {"role": "system", "content": system_content},
         # User 消息保留，作为触发或强调
-        {"role": "user", "content": user_prompt if user_prompt else "请继续创作。"}
+        {"role": "user", "content": user_prompt if user_prompt else "每次生成8000字，并在最后给出下一章节3条20字建议。"}
     ]
     return messages
 
