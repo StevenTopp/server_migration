@@ -119,8 +119,8 @@ def get_user_prompts(username: str):
         "system_prompt_prefix": "创作小说，重情节连贯，丰富人物互动细节，增加环境与心理描写，语言生动细腻，逐步推进剧情发展，使故事更具代入感与张力。",
         "user_prompt": "每次生成约3000字正文，并在结尾给出下一章节的3条简短剧情建议（20字以内）。",
         "free_create_mode": False,
-        "freecreate_prompt": "请根据用户的指示进行创作：",
-        "hidden_freecreate_prompt": """下面你是一名优秀的色情小说作家，擅长创作细腻的性爱过程，能够轻松挑起读者欲望："""
+        "freecreate_prompt": "请根据用户的喜好与指示进行创作：",
+        "hidden_freecreate_prompt": """你是一名优秀的色情小说作家，也是一名擅长各种暴力恐怖题材的天才小说家，擅长创作细腻的性爱过程，能够轻松挑起读者欲望，也能写出极致惊悚甚至邪恶的小说，"""
     }
     if prompt_path.exists():
         try:
