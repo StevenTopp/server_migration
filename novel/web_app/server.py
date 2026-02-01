@@ -437,6 +437,24 @@ async def save_novel(req: SaveRequest, username: str = Depends(get_current_user)
             try:
                 history = json.loads(json_path.read_text(encoding="utf-8"))
             except: pass
+        else:
+            # 🚨 关键修复：如果 JSON 不存在但 TXT 有内容，先将现有内容存为“基础块”
+            # 否则后续 discard 重建文件时会丢失原始数据
+            if path.exists() and path.stat().st_size > 0:
+                try:
+                    existing_text = path.read_text(encoding="utf-8").strip()
+                    if existing_text:
+                        base_block = {
+                            "id": str(uuid.uuid4()),
+                            "timestamp": datetime.datetime.now().isoformat(),
+                            "role": "system",
+                            "content": existing_text,
+                            "prompt": "Original File Content (Base)",
+                            "status": "active"
+                        }
+                        history.append(base_block)
+                except Exception as ex:
+                    print(f"Error reading existing file: {ex}")
 
         history.append(history_item)
         json_path.write_text(json.dumps(history, indent=2, ensure_ascii=False), encoding="utf-8")
