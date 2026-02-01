@@ -442,7 +442,9 @@ async def generate_novel(req: GenerateRequest, username: str = Depends(get_curre
 
     try:
         context = path.read_text(encoding="utf-8") if path.exists() else ""
+        print(f"DEBUG: Reading from {path}, context length: {len(context)}")
     except Exception as e:
+        print(f"DEBUG: Error reading {path}: {e}")
         context = ""
 
     # 隐藏的专家设定
