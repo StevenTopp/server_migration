@@ -121,8 +121,8 @@ def get_user_prompts(username: str):
         "user_prompt": "每次生成约3000字正文，并在结尾给出下一章节的3条简短剧情建议（20字以内）。",
         "free_create_mode": False,
         "freecreate_prompt": "请根据用户的喜好与指示进行创作色情小说：",
-        "pre_hidden_freecreate_prompt": """你是一名优秀的色情小说作家，擅长创作细腻的性爱过程，能够轻松挑起读者欲望，详细描述做爱过程，比如鸡巴，小穴，乳头,菊花，并增加描述词，逐步推进小说剧情""",
-        "post_hidden_freecreate_prompt": "后缀"
+        "pre_hidden_freecreate_prompt": """你是一名优秀的色情小说作家，擅长创作细腻的性爱过程，能够轻松挑起读者欲望，逐步推进小说剧情""",
+        "post_hidden_freecreate_prompt": "续写小说，详细描述做爱过程，比如鸡巴，小穴，乳头,菊花，改纯爱等并增加描述词，逐步推进小说剧情，"
     }
     if prompt_path.exists():
         try:
