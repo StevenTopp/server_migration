@@ -422,24 +422,13 @@ async def save_novel(req: SaveRequest, username: str = Depends(get_current_user)
             f.write(text_to_write)
 
         # 2. 写入 .json 历史记录
-        block_id = str(uuid.uuid4())
-        history_item = {
-            "id": block_id,
-            "timestamp": datetime.datetime.now().isoformat(),
-            "role": "assistant",
-            "content": req.content,
-            "prompt": req.prompt or "",
-            "status": "active" # active, discarded
-        }
-
         history = []
         if json_path.exists():
             try:
                 history = json.loads(json_path.read_text(encoding="utf-8"))
             except: pass
         else:
-            # 🚨 关键修复：如果 JSON 不存在但 TXT 有内容，先将现有内容存为“基础块”
-            # 否则后续 discard 重建文件时会丢失原始数据
+            # 初始化基础块逻辑...
             if path.exists() and path.stat().st_size > 0:
                 try:
                     existing_text = path.read_text(encoding="utf-8").strip()
@@ -453,10 +442,31 @@ async def save_novel(req: SaveRequest, username: str = Depends(get_current_user)
                             "status": "active"
                         }
                         history.append(base_block)
-                except Exception as ex:
-                    print(f"Error reading existing file: {ex}")
+                except: pass
 
-        history.append(history_item)
+        # 如果有用户指令，单独存一条 user 记录
+        if req.prompt:
+            user_block = {
+                "id": str(uuid.uuid4()),
+                "timestamp": datetime.datetime.now().isoformat(),
+                "role": "user",
+                "content": req.prompt,
+                "status": "active"
+            }
+            history.append(user_block)
+
+        # 存 assistant 记录
+        block_id = str(uuid.uuid4())
+        assistant_block = {
+            "id": block_id,
+            "timestamp": datetime.datetime.now().isoformat(),
+            "role": "assistant",
+            "content": req.content,
+            "prompt": req.prompt or "",
+            "status": "active"
+        }
+        history.append(assistant_block)
+
         json_path.write_text(json.dumps(history, indent=2, ensure_ascii=False), encoding="utf-8")
 
         return {"status": "saved", "block_id": block_id}
