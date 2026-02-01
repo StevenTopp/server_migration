@@ -314,9 +314,9 @@
                     <div id="btnLoader" class="loader hidden"></div>
                 </button>
 
-                <button id="stopBtn" onclick="stopGeneration()" class="hidden absolute inset-0 bg-gray-700 hover:bg-gray-600 text-gray-200 rounded-xl flex flex-row items-center justify-center gap-2 shadow-lg transition-colors z-10 border border-gray-600">
+                <button id="stopBtn" onclick="stopGeneration()" class="hidden absolute inset-0 bg-gray-200 hover:bg-gray-300 text-gray-900 rounded-xl flex flex-row items-center justify-center gap-1 shadow-lg shadow-white/5 transition-colors z-10">
                     <span class="text-lg font-bold">||</span>
-                    <span class="text-sm">暂停</span>
+                    <span class="text-sm font-medium">暂停</span>
                 </button>
             </div>
         </div>
@@ -632,6 +632,7 @@
             } catch (e) {
                 if (e.name === 'AbortError') {
                     contentDiv.insertAdjacentHTML('beforeend', '<br><span class="text-red-400 text-xs italic">[已暂停输出]</span>');
+                    card.classList.add('generation-stopped'); // 标记为已暂停，防止自动采纳
                 } else {
                     contentDiv.innerText = accumulatedText + `\n[出错: ${e}]`;
                 }
