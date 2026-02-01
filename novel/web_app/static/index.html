@@ -38,17 +38,18 @@
         }
         /* 吸附态样式 */
         .header-collapsed {
-            transform: translateY(-80%);
+            /* 移除 transform，改为利用 h-4 class 控制高度 */
             opacity: 0.6;
             cursor: pointer;
+            overflow: hidden !important; /* 强制隐藏内部 */
         }
         .header-collapsed:hover {
-            transform: translateY(0);
             opacity: 1;
         }
         .header-collapsed .header-content {
             opacity: 0;
             pointer-events: none;
+            transition: opacity 0.2s;
         }
         .header-collapsed .header-handle {
             opacity: 1;
@@ -236,8 +237,8 @@
             </div>
 
             <!-- 吸附态把手 (平时隐藏，吸附时显示) -->
-            <div class="header-handle absolute bottom-0 left-0 w-full h-4 flex justify-center items-center opacity-0 transition-opacity duration-300 cursor-pointer" onclick="expandHeader()">
-                <div class="w-12 h-1 bg-gray-600 rounded-full"></div>
+            <div class="header-handle absolute top-0 left-0 w-full h-full flex justify-center items-center opacity-0 transition-opacity duration-300 cursor-pointer" onclick="expandHeader()">
+                <div class="w-24 h-1 bg-gray-600 rounded-full hover:bg-gray-400 transition-colors"></div>
             </div>
         </div>
 
@@ -466,14 +467,14 @@
 
         function collapseHeader() {
             const header = document.getElementById('topHeader');
-            header.classList.add('header-collapsed', '-translate-y-[85%]');
+            header.classList.add('header-collapsed');
             header.classList.remove('p-3');
             header.classList.add('p-0', 'h-4');
         }
 
         function expandHeader() {
             const header = document.getElementById('topHeader');
-            header.classList.remove('header-collapsed', '-translate-y-[85%]', 'p-0', 'h-4');
+            header.classList.remove('header-collapsed', 'p-0', 'h-4');
             header.classList.add('p-3');
             // 清除之前的定时器
             if(autoCollapseTimer) clearTimeout(autoCollapseTimer);
