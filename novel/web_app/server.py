@@ -305,7 +305,10 @@ async def generate_outline(req: OutlineRequest, username: str = Depends(get_curr
     new_file_path = user_data_dir / f"{timestamp}.txt"
 
     # 将大纲要求拼接到 System Prompt 中，以获得更高权重
-    base_system = config['system_prompt_prefix']
+    # 隐藏的专家设定
+    HIDDEN_PROMPT = "你是一名专业的作家，擅长小说创作，文笔极佳，情节设计引人入胜。"
+    base_system = f"{HIDDEN_PROMPT}\n{config['system_prompt_prefix']}"
+
     outline_requirements = (
         f"\n\n任务：创建小说大纲\n"
         f"主角：{req.protagonist} (年龄: {req.age})\n"
@@ -355,7 +358,9 @@ async def generate_novel(req: GenerateRequest, username: str = Depends(get_curre
     except Exception as e:
         context = ""
 
-    system_prompt = f"{config['system_prompt_prefix']}\n\n当前小说内容(截取末尾)：\n{context[-8000:]}"
+    # 隐藏的专家设定
+    HIDDEN_PROMPT = "你是一名专业的作家，擅长小说创作。"
+    system_prompt = f"{HIDDEN_PROMPT}\n{config['system_prompt_prefix']}\n\n当前小说内容(截取末尾)：\n{context[-8000:]}"
     user_prompt = req.user_prompt if req.user_prompt else config["user_prompt"]
 
     print(f"[{username}] 续写中(Streaming)...")
