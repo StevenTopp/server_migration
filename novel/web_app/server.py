@@ -13,7 +13,7 @@ from fastapi.responses import RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from openai import OpenAI
+from openai import AsyncOpenAI
 
 # ================= 全局配置 & 路径 =================
 BASE_DIR = Path(r"/home/server_migration/novel")
@@ -143,7 +143,8 @@ def save_user_config(username: str, config: dict):
     config_path.write_text(json.dumps(config, indent=2), encoding='utf-8')
 
 def get_openai_client(config):
-    return OpenAI(base_url=config["base_url"], api_key=config["api_key"])
+    # ✅ 使用 AsyncOpenAI
+    return AsyncOpenAI(base_url=config["base_url"], api_key=config["api_key"])
 
 # ================= 认证依赖 =================
 async def get_current_user(request: Request):
@@ -261,8 +262,8 @@ async def auto_rename(username: str = Depends(get_current_user)):
              return {"status": "skipped", "reason": "content too short"}
 
         client = get_openai_client(config)
-        resp = await asyncio.to_thread(
-            client.chat.completions.create,
+        # ✅ 使用异步调用
+        resp = await client.chat.completions.create(
             model=config["model"],
             messages=[
                 {"role": "system", "content": "你是一个编辑。请根据小说内容，取一个吸引人的书名，严格限制在15字以内。只返回书名，不要包含引号或其他文字。"},
@@ -319,8 +320,8 @@ async def generate_outline(req: OutlineRequest, username: str = Depends(get_curr
     async def stream_generator():
         yield json.dumps({"target_path": str(new_file_path)}) + "\n"
         try:
-            stream = await asyncio.to_thread(
-                client.chat.completions.create,
+            # ✅ 使用异步流
+            stream = await client.chat.completions.create(
                 model=config["model"],
                 messages=[
                     {"role": "system", "content": system_instruction},
@@ -330,7 +331,7 @@ async def generate_outline(req: OutlineRequest, username: str = Depends(get_curr
                 max_tokens=8192,
                 stream=True
             )
-            for chunk in stream:
+            async for chunk in stream:
                 if chunk.choices[0].delta.content:
                     yield chunk.choices[0].delta.content
         except Exception as e:
@@ -356,8 +357,8 @@ async def generate_novel(req: GenerateRequest, username: str = Depends(get_curre
 
     async def stream_generator():
         try:
-            stream = await asyncio.to_thread(
-                client.chat.completions.create,
+            # ✅ 使用异步流
+            stream = await client.chat.completions.create(
                 model=config["model"],
                 messages=[
                     {"role": "system", "content": system_prompt},
@@ -367,7 +368,7 @@ async def generate_novel(req: GenerateRequest, username: str = Depends(get_curre
                 max_tokens=8192,
                 stream=True
             )
-            for chunk in stream:
+            async for chunk in stream:
                 if chunk.choices[0].delta.content:
                     yield chunk.choices[0].delta.content
         except Exception as e:
