@@ -85,7 +85,7 @@ class ConfigRequest(BaseModel):
     user_prompt: str
     free_create_mode: Optional[bool] = False
     freecreate_prompt: Optional[str] = ""
-    gemini_3_flashden_freecreate_prompt: Optional[str] = ""
+    hidden_freecreate_prompt: Optional[str] = ""
     # file_path 不允许用户直接通过 config 接口随意修改到其他目录，由后端控制
 
 # ================= 工具函数 =================
