@@ -460,14 +460,30 @@
                 icon.innerText = "▼"; icon.classList.remove('text-blue-500');
             }
         }
-        function copyNovelContent() {
-            const text = document.getElementById('novelPreview').innerText;
-            navigator.clipboard.writeText(text).then(() => {
-                const btn = document.querySelector('.copy-btn');
-                const originalHTML = btn.innerHTML;
-                btn.innerHTML = `<span class="text-green-400 font-bold">✔</span> 已复制`;
+        async function copyNovelContent() {
+            const btn = document.querySelector('button[title="复制全文"]');
+            const originalHTML = btn.innerHTML;
+            btn.innerHTML = `<span class="animate-spin">↻</span> 获取中...`;
+            btn.disabled = true;
+
+            try {
+                // 直接从后端获取最新纯文本，确保不含任何干扰信息
+                const res = await apiFetch('/api/novel?full=true');
+                const data = await res.json();
+
+                if (data.content) {
+                    await navigator.clipboard.writeText(data.content);
+                    btn.innerHTML = `<span class="text-green-400 font-bold">✔</span> 已复制`;
+                } else {
+                    throw new Error("内容为空");
+                }
+            } catch (err) {
+                alert("复制失败: " + err.message);
+                btn.innerHTML = originalHTML;
+            } finally {
+                btn.disabled = false;
                 setTimeout(() => btn.innerHTML = originalHTML, 2000);
-            }).catch(err => alert("复制失败"));
+            }
         }
 
         // ================= Card UI =================

@@ -286,7 +286,8 @@ async def get_novel_content(full: bool = False, username: str = Depends(get_curr
     try:
         content = path.read_text(encoding="utf-8")
         if full:
-             return {"content": content, "full_length": len(content), "path": str(path)}
+             # 返回纯文本内容，不包含 path 等元数据干扰复制
+             return {"content": content}
 
         preview = content[-2000:] if len(content) > 2000 else content
         return {"content": preview, "full_length": len(content), "path": str(path)}
