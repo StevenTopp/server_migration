@@ -36,15 +36,24 @@
             gap: 8px;
             z-index: 10;
         }
-        /* 吸附态样式 */
+        /* 吸附态样式 - 使用 max-height 动画，避免位移遮挡 */
+        #topHeader {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            max-height: 400px; /* 展开时的估算最大高度 */
+            overflow: hidden;
+        }
         .header-collapsed {
-            transform: translateY(-85%); /* 恢复位移 */
-            opacity: 0.6;
+            max-height: 24px !important; /* 吸附时的高度 */
+            padding-top: 0 !important;
+            padding-bottom: 0 !important;
+            opacity: 0.8;
             cursor: pointer;
+            border-bottom-color: transparent !important;
+            background: rgba(24, 24, 27, 0.6) !important; /* 稍微透明一点 */
         }
         .header-collapsed:hover {
-            transform: translateY(-82%); /* 悬浮时只微动，提示可点击 */
             opacity: 1;
+            background: rgba(24, 24, 27, 0.9) !important;
         }
         .header-collapsed .header-content {
             opacity: 0;
@@ -52,6 +61,7 @@
         }
         .header-collapsed .header-handle {
             opacity: 1;
+            pointer-events: auto;
         }
     </style>
 </head>
@@ -235,9 +245,9 @@
                 </div>
             </div>
 
-            <!-- 吸附态把手 -->
-            <div class="header-handle absolute bottom-0 left-0 w-full h-6 flex justify-center items-center opacity-0 transition-opacity duration-300 cursor-pointer" onclick="expandHeader()">
-                <div class="w-24 h-1 bg-gray-600 rounded-full hover:bg-gray-400 transition-colors"></div>
+            <!-- 吸附态把手 (点击展开) -->
+            <div class="header-handle absolute inset-0 flex justify-center items-center opacity-0 transition-opacity duration-300" onclick="expandHeader()">
+                <span class="text-gray-500 hover:text-white text-lg font-bold leading-none mt-1">▼</span>
             </div>
         </div>
 
@@ -467,14 +477,12 @@
         function collapseHeader() {
             const header = document.getElementById('topHeader');
             header.classList.add('header-collapsed');
-            header.classList.remove('p-3');
-            header.classList.add('p-0', 'h-16'); // 恢复高度以容纳位移后的把手
+            // 不需要移除 p-3，因为 CSS 中用 !important 覆盖了 padding
         }
 
         function expandHeader() {
             const header = document.getElementById('topHeader');
-            header.classList.remove('header-collapsed', 'p-0', 'h-16');
-            header.classList.add('p-3');
+            header.classList.remove('header-collapsed');
             if(autoCollapseTimer) clearTimeout(autoCollapseTimer);
         }
 
