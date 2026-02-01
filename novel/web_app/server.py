@@ -477,6 +477,22 @@ async def get_sessions(username: str = Depends(get_current_user)):
     sessions.sort(key=lambda x: x["updated_at"], reverse=True)
     return {"sessions": sessions}
 
+@app.post("/api/history")
+async def get_history(username: str = Depends(get_current_user)):
+    config = get_user_config(username)
+    path = Path(config["file_path"])
+    json_path = path.with_suffix(".json")
+
+    if not json_path.exists():
+        return {"history": []}
+
+    try:
+        history = json.loads(json_path.read_text(encoding="utf-8"))
+        return {"history": history}
+    except Exception as e:
+        print(f"Error reading history {json_path}: {e}")
+        return {"history": []}
+
 @app.post("/api/switch_session")
 async def switch_session(req: dict, username: str = Depends(get_current_user)):
     filename = req.get("filename")
