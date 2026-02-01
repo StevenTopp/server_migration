@@ -37,47 +37,37 @@
             z-index: 10;
         }
 
-        /* 顶部预览框样式 */
+        /* 吸附态样式 - 使用 max-height 动画 */
         #topHeader {
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            max-height: 400px; /* 默认展开态的最大高度 */
+            max-height: 400px;
             overflow: hidden;
         }
-
-        /* 吸附态 (Collapsed) */
         .header-collapsed {
-            max-height: 28px !important; /* 压缩为细条 */
-            padding: 0 !important;
+            max-height: 24px !important;
+            padding-top: 0 !important;
+            padding-bottom: 0 !important;
             opacity: 0.8;
             cursor: pointer;
-            background: rgba(24, 24, 27, 0.95) !important;
-            border-bottom: 1px solid rgba(255,255,255,0.05) !important;
+            border-bottom-color: transparent !important;
+            background: rgba(24, 24, 27, 0.6) !important;
+            overflow: hidden !important;
         }
         .header-collapsed:hover {
             opacity: 1;
+            background: rgba(24, 24, 27, 0.9) !important;
         }
-        /* 吸附态下隐藏内部主要内容 */
         .header-collapsed .header-content {
             opacity: 0;
             pointer-events: none;
-            transition: opacity 0.1s;
         }
-        /* 吸附态下显示把手 */
         .header-collapsed .header-handle {
             opacity: 1;
             pointer-events: auto;
         }
-        /* 正常态下隐藏把手 */
-        .header-handle {
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.3s;
-        }
-
-        /* 复制按钮显隐 */
+        /* 复制按钮显隐：吸附时隐藏 */
         .copy-btn { opacity: 0; transition: opacity 0.2s; }
         .group:hover .copy-btn { opacity: 1; }
-        /* 吸附时强制隐藏复制按钮 */
         .header-collapsed .copy-btn { display: none; }
     </style>
 </head>
@@ -157,7 +147,7 @@
                     <div class="bg-gray-800/50 p-4 rounded-lg border border-gray-700">
                         <h3 class="text-green-400 mt-0">核心机制</h3>
                         <ul class="text-sm space-y-1 pl-4 mb-0">
-                            <li><strong>人机协同</strong>：生成的内容需人工审核采纳。</li>
+                            <li><strong>人机协同</strong>：生成的内容不会直接写入，需人工审核。</li>
                             <li><strong>上下文记忆</strong>：AI 自动读取前文 8000 字。</li>
                             <li><strong>风格自定义</strong>：可在设置中调整底层设定。</li>
                         </ul>
@@ -218,7 +208,7 @@
     <!-- 主内容区 -->
     <main class="flex-1 overflow-y-auto p-4 space-y-6 pt-12" id="mainContainer">
 
-        <!-- 顶部预览卡片 -->
+        <!-- 上下文预览卡片 -->
         <div id="topHeader" class="glass rounded-xl p-3 fixed top-14 left-4 right-4 z-20 backdrop-blur-md shadow-lg border-b border-gray-700/50">
             <!-- 正常内容 -->
             <div class="header-content">
@@ -229,7 +219,8 @@
                     </div>
                     <div class="flex items-center gap-3 flex-shrink-0">
                         <span id="wordCount" class="text-xs text-gray-500 font-mono">0 字</span>
-                        <button onclick="collapseHeader()" class="text-xs text-gray-400 hover:text-white px-1 font-bold" title="收起">▲</button>
+                        <!-- 手动收起按钮 -->
+                        <button onclick="collapseHeader()" class="text-xs text-gray-400 hover:text-white px-1" title="收起">▲</button>
                     </div>
                 </div>
 
@@ -249,8 +240,8 @@
             </div>
 
             <!-- 吸附态把手 -->
-            <div class="header-handle absolute inset-0 flex justify-center items-center cursor-pointer" onclick="expandHeader()">
-                <span class="text-gray-500 hover:text-white text-xs font-bold transform scale-150">▼</span>
+            <div class="header-handle absolute inset-0 flex justify-center items-center opacity-0 transition-opacity duration-300" onclick="expandHeader()">
+                <span class="text-gray-500 hover:text-white text-xs font-bold">▼</span>
             </div>
         </div>
 
@@ -360,7 +351,6 @@
             const cardId = createResultCard(cardTitle);
             const card = document.getElementById(cardId);
 
-            // 记录 Prompt 用于回传
             if (body.user_prompt) card.dataset.prompt = body.user_prompt;
             else if (isOutline) card.dataset.prompt = `[大纲] 主角:${body.protagonist} 风格:${body.style}`;
 
@@ -417,7 +407,6 @@
         }
 
         async function generate() {
-            // 自动采纳逻辑
             const pendingBtns = document.querySelectorAll('.float-actions button:last-child');
             for (const btn of pendingBtns) {
                 if (btn.innerText.includes('采纳') && !btn.disabled) {
@@ -431,7 +420,7 @@
             await handleStreamRequest('/api/generate', { user_prompt: userPrompt || null }, "✍️ 正在续写");
         }
 
-        // ================= Header UI =================
+        // ================= UI 组件 =================
         let autoCollapseTimer;
         function collapseHeader() {
             const header = document.getElementById('topHeader');
@@ -460,30 +449,28 @@
                 icon.innerText = "▼"; icon.classList.remove('text-blue-500');
             }
         }
-        async function copyNovelContent() {
-            const btn = document.querySelector('button[title="复制全文"]');
+        function copyNovelContent() {
+            const text = document.getElementById('novelPreview').innerText;
+            const btn = document.querySelector('.copy-btn');
             const originalHTML = btn.innerHTML;
-            btn.innerHTML = `<span class="animate-spin">↻</span> 获取中...`;
-            btn.disabled = true;
-
-            try {
-                // 直接从后端获取最新纯文本，确保不含任何干扰信息
-                const res = await apiFetch('/api/novel?full=true');
-                const data = await res.json();
-
-                if (data.content) {
-                    await navigator.clipboard.writeText(data.content);
-                    btn.innerHTML = `<span class="text-green-400 font-bold">✔</span> 已复制`;
-                } else {
-                    throw new Error("内容为空");
-                }
-            } catch (err) {
-                alert("复制失败: " + err.message);
-                btn.innerHTML = originalHTML;
-            } finally {
-                btn.disabled = false;
+            const showSuccess = () => {
+                btn.innerHTML = `<span class="text-green-400 font-bold">✔</span> 已复制`;
                 setTimeout(() => btn.innerHTML = originalHTML, 2000);
-            }
+            };
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(showSuccess).catch(() => fallbackCopy(text, showSuccess));
+            } else { fallbackCopy(text, showSuccess); }
+        }
+        function fallbackCopy(text, callback) {
+            try {
+                const textArea = document.createElement("textarea");
+                textArea.value = text;
+                textArea.style.position = "fixed"; textArea.style.opacity = "0";
+                document.body.appendChild(textArea); textArea.focus(); textArea.select();
+                const successful = document.execCommand('copy');
+                document.body.removeChild(textArea);
+                if (successful) callback(); else alert("复制失败");
+            } catch (err) { alert("复制失败: " + err); }
         }
 
         // ================= Card UI =================
