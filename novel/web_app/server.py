@@ -85,6 +85,7 @@ class ConfigRequest(BaseModel):
     user_prompt: str
     free_create_mode: Optional[bool] = False
     freecreate_prompt: Optional[str] = ""
+    hidden_freecreate_prompt: Optional[str] = ""
     # file_path 不允许用户直接通过 config 接口随意修改到其他目录，由后端控制
 
 # ================= 工具函数 =================
@@ -118,7 +119,8 @@ def get_user_prompts(username: str):
         "system_prompt_prefix": "创作小说，重情节连贯，丰富人物互动细节，增加环境与心理描写，语言生动细腻，逐步推进剧情发展，使故事更具代入感与张力。",
         "user_prompt": "每次生成约3000字正文，并在结尾给出下一章节的3条简短剧情建议（20字以内）。",
         "free_create_mode": False,
-        "freecreate_prompt": "你是一个自由创作助手，请根据用户的指示进行创作。"
+        "freecreate_prompt": "你是一个自由创作助手，请根据用户的指示进行创作。",
+        "hidden_freecreate_prompt": "待补充"
     }
     if prompt_path.exists():
         try:
@@ -187,7 +189,8 @@ def save_user_config_split(username: str, full_config: dict):
         "system_prompt_prefix": full_config.get("system_prompt_prefix"),
         "user_prompt": full_config.get("user_prompt"),
         "free_create_mode": full_config.get("free_create_mode"),
-        "freecreate_prompt": full_config.get("freecreate_prompt")
+        "freecreate_prompt": full_config.get("freecreate_prompt"),
+        "hidden_freecreate_prompt": full_config.get("hidden_freecreate_prompt")
     }
     save_user_prompts(username, prompts)
 
@@ -391,6 +394,7 @@ async def generate_outline(req: OutlineRequest, username: str = Depends(get_curr
          print(f"[{username}] 使用自由创作模式生成大纲...")
          messages = free_create_mode.build_outline_messages(
              freecreate_prompt=config.get("freecreate_prompt", ""),
+             hidden_freecreate_prompt=config.get("hidden_freecreate_prompt", "待补充"),
              outline_requirements=outline_requirements
          )
     else:
@@ -441,6 +445,7 @@ async def generate_novel(req: GenerateRequest, username: str = Depends(get_curre
         print(f"[{username}] 使用自由创作模式续写...")
         messages = free_create_mode.build_generate_messages(
             freecreate_prompt=config.get("freecreate_prompt", ""),
+            hidden_freecreate_prompt=config.get("hidden_freecreate_prompt", "待补充"),
             context=context[-8000:], # 同样截取末尾 context
             user_prompt=user_prompt
         )

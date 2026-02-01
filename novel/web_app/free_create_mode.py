@@ -2,15 +2,19 @@ from typing import List, Dict
 
 def build_generate_messages(
     freecreate_prompt: str,
+    hidden_freecreate_prompt: str,
     context: str,
     user_prompt: str
 ) -> List[Dict[str, str]]:
     """
     构建自由创作模式下的生成消息列表
-    逻辑：freecreate_prompt + context + user_prompt (添加到 system 最后)
+    逻辑：hidden_freecreate_prompt + freecreate_prompt + context + user_prompt (添加到 system 最后)
     """
     # 构造 system prompt
-    system_content = f"{freecreate_prompt}\n\n{context}"
+    # 拼接到 freecreate_prompt 最前面
+    full_prompt = f"{hidden_freecreate_prompt}\n{freecreate_prompt}" if hidden_freecreate_prompt else freecreate_prompt
+
+    system_content = f"{full_prompt}\n\n{context}"
 
     # 用户输入也添加到 system 最后
     if user_prompt:
@@ -25,13 +29,15 @@ def build_generate_messages(
 
 def build_outline_messages(
     freecreate_prompt: str,
+    hidden_freecreate_prompt: str,
     outline_requirements: str
 ) -> List[Dict[str, str]]:
     """
     构建自由创作模式下的大纲生成消息列表
-    逻辑：采用 freecreate_prompt 创作大纲
+    逻辑：采用 hidden_freecreate_prompt + freecreate_prompt 创作大纲
     """
-    final_system = f"{freecreate_prompt}\n\n{outline_requirements}"
+    full_prompt = f"{hidden_freecreate_prompt}\n{freecreate_prompt}" if hidden_freecreate_prompt else freecreate_prompt
+    final_system = f"{full_prompt}\n\n{outline_requirements}"
 
     messages = [
         {"role": "system", "content": final_system},
