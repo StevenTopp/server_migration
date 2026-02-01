@@ -37,40 +37,67 @@
             z-index: 10;
         }
 
-        /* 吸附态样式 - 使用 max-height 动画 */
+        /* === 顶部预览框核心样式 === */
         #topHeader {
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            max-height: 400px;
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
             overflow: hidden;
             display: flex;
             flex-direction: column;
         }
-        .header-collapsed {
-            max-height: 24px !important;
-            padding-top: 0 !important;
-            padding-bottom: 0 !important;
-            opacity: 0.8;
-            cursor: pointer;
+
+        /* 状态1：吸附态 (Collapsed) */
+        #topHeader.is-collapsed {
+            height: 28px !important;
+            padding: 0 !important;
+            background: rgba(24, 24, 27, 0.95) !important;
             border-bottom-color: transparent !important;
-            background: rgba(24, 24, 27, 0.6) !important;
-            overflow: hidden !important;
+            cursor: pointer;
         }
-        .header-collapsed:hover {
+        #topHeader.is-collapsed:hover {
             opacity: 1;
-            background: rgba(24, 24, 27, 0.9) !important;
+            background: rgba(24, 24, 27, 1) !important;
         }
-        .header-collapsed .header-content {
+        #topHeader.is-collapsed .header-main {
             opacity: 0;
             pointer-events: none;
         }
-        .header-collapsed .header-handle {
+        #topHeader.is-collapsed .header-handle {
             opacity: 1;
             pointer-events: auto;
         }
-        /* 复制按钮显隐：吸附时隐藏 */
+
+        /* 状态2：预览态 (Preview) - 默认 */
+        #topHeader .text-content {
+            max-height: 4.5em; /* 约3行 */
+            overflow: hidden;
+            mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
+            -webkit-mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
+        }
+
+        /* 状态3：全文态 (Expanded) */
+        #topHeader.is-expanded .text-content {
+            max-height: 60vh;
+            overflow-y: auto;
+            mask-image: none;
+            -webkit-mask-image: none;
+        }
+
+        /* 元素显隐控制 */
+        .header-handle {
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s;
+        }
+        .header-main {
+            opacity: 1;
+            transition: opacity 0.3s;
+        }
+
+        /* 复制按钮 - 仅在非吸附态显示 */
         .copy-btn { opacity: 0; transition: opacity 0.2s; }
-        .group:hover .copy-btn { opacity: 1; }
-        .header-collapsed .copy-btn { display: none !important; }
+        #topHeader:hover .copy-btn { opacity: 1; }
+        #topHeader.is-collapsed .copy-btn { display: none !important; }
+
     </style>
 </head>
 <body class="h-screen flex flex-col overflow-hidden">
@@ -78,6 +105,7 @@
     <!-- 顶部栏 -->
     <header class="h-14 flex items-center justify-between px-4 border-b border-white/10 bg-[#09090b]/80 backdrop-blur shrink-0 z-30">
         <div class="flex items-center gap-3">
+            <!-- 汉堡菜单 (历史记录) -->
             <button onclick="toggleSidebar()" class="text-gray-400 hover:text-white text-xl">☰</button>
             <h1 class="font-bold text-lg text-gray-200 tracking-wide">织梦者</h1>
         </div>
@@ -103,6 +131,7 @@
             </button>
         </div>
         <div id="sessionList" class="flex-1 overflow-y-auto px-2 space-y-1">
+            <!-- 会话列表 -->
             <div class="text-center text-gray-500 text-sm mt-10">正在加载...</div>
         </div>
     </div>
@@ -230,6 +259,8 @@
 
         <!-- 顶部预览卡片 -->
         <div id="topHeader" class="glass rounded-xl p-3 fixed top-14 left-4 right-4 z-20 backdrop-blur-md shadow-lg border-b border-gray-700/50 flex flex-col justify-between">
+
+            <!-- 正常内容区域 -->
             <div class="header-main w-full">
                 <!-- Header Info -->
                 <div class="flex justify-between items-center mb-1">
@@ -239,16 +270,16 @@
                     </div>
                     <div class="flex items-center gap-3 flex-shrink-0">
                         <span id="wordCount" class="text-xs text-gray-500 font-mono">0 字</span>
-                        <!-- 手动收起按钮 -->
-                        <button onclick="collapseHeader()" class="text-xs text-gray-400 hover:text-white px-1" title="收起">▲</button>
+                        <!-- 手动收起按钮 (点击触发 collapseHeader) -->
+                        <button onclick="event.stopPropagation(); collapseHeader()" class="text-xs text-gray-400 hover:text-white px-1 font-bold z-20" title="收起">▲</button>
                     </div>
                 </div>
 
-                <!-- 文本区域 -->
-                <div class="relative group cursor-pointer select-none" onclick="togglePreview()">
-                    <div id="novelPreview" class="text-gray-400 text-xs leading-relaxed whitespace-pre-wrap border-l-2 border-gray-700 pl-3 pr-8 transition-all duration-300 relative">正在加载...</div>
+                <!-- 文本区域 (点击触发 toggleFullView) -->
+                <div class="relative group cursor-pointer select-none" onclick="toggleFullView()">
+                    <div id="novelPreview" class="text-content text-gray-400 text-xs leading-relaxed whitespace-pre-wrap border-l-2 border-gray-700 pl-3 pr-8 transition-all duration-300 relative">正在加载...</div>
 
-                    <!-- 复制按钮 -->
+                    <!-- 复制按钮 (仅在非吸附态显示) -->
                     <button onclick="event.stopPropagation(); copyNovelContent()" class="copy-btn absolute bottom-0 right-0 bg-gray-800/80 backdrop-blur text-gray-400 hover:text-white text-[10px] px-2 py-0.5 rounded border border-gray-700 flex items-center gap-1 z-10" title="复制全文">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>
                         复制
@@ -260,9 +291,9 @@
                 </div>
             </div>
 
-            <!-- 吸附态把手 -->
+            <!-- 吸附态把手 (点击触发 expandHeader) -->
             <div class="header-handle absolute inset-0 flex justify-center items-center cursor-pointer" onclick="expandHeader()">
-                <span class="text-gray-500 hover:text-white text-xs font-bold">▼</span>
+                <span class="text-gray-500 hover:text-white text-xs font-bold transform scale-150">▼</span>
             </div>
         </div>
 
@@ -275,11 +306,17 @@
     <footer class="bg-[#09090b] border-t border-white/10 p-4 safe-area-bottom z-40 relative">
         <div class="max-w-3xl mx-auto flex gap-3">
             <textarea id="promptInput" rows="1" class="flex-1 bg-[#18181b] text-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-1 focus:ring-white/30 resize-none shadow-inner border border-white/5 placeholder-gray-600" placeholder="输入续写指令..."></textarea>
-            <!-- 唯一操作按钮：生成/暂停 -->
+
+            <!-- 生成/暂停按钮 -->
             <div class="relative">
-                <button id="generateBtn" onclick="onMainBtnClick()" class="btn-primary rounded-xl px-5 flex items-center justify-center min-w-[3.5rem] shadow-lg shadow-white/5 h-full transition-all duration-200">
+                <button id="generateBtn" onclick="generate()" class="btn-primary rounded-xl px-5 flex items-center justify-center min-w-[3.5rem] shadow-lg shadow-white/5 h-full">
                     <span id="btnIcon" class="text-lg">➤</span>
                     <div id="btnLoader" class="loader hidden"></div>
+                </button>
+
+                <button id="stopBtn" onclick="stopGeneration()" class="hidden absolute inset-0 bg-gray-200 hover:bg-gray-300 text-gray-900 rounded-xl flex flex-row items-center justify-center gap-1 shadow-lg shadow-white/5 transition-colors z-10">
+                    <span class="text-lg font-bold">||</span>
+                    <span class="text-sm font-medium">暂停</span>
                 </button>
             </div>
         </div>
@@ -303,6 +340,141 @@
             apiFetch('/api/logout', { method: 'POST' });
             localStorage.removeItem('token'); localStorage.removeItem('username');
             window.location.href = '/static/login.html';
+        }
+
+        // ================= Sidebar Logic (Sessions) =================
+        function toggleSidebar() {
+            const sidebar = document.getElementById('historySidebar');
+            const backdrop = document.getElementById('historySidebarBackdrop');
+
+            if (sidebar.classList.contains('-translate-x-full')) {
+                sidebar.classList.remove('-translate-x-full');
+                backdrop.classList.remove('hidden');
+                setTimeout(() => backdrop.classList.remove('opacity-0'), 10);
+                loadSessions(); // 加载会话列表
+            } else {
+                sidebar.classList.add('-translate-x-full');
+                backdrop.classList.add('opacity-0');
+                setTimeout(() => backdrop.classList.add('hidden'), 300);
+            }
+        }
+
+        async function loadSessions() {
+            const list = document.getElementById('sessionList');
+            list.innerHTML = '<div class="text-center text-gray-500 text-sm mt-4"><span class="animate-spin inline-block">↻</span> 加载中...</div>';
+
+            try {
+                const res = await apiFetch('/api/sessions', { method: 'POST' });
+                const data = await res.json();
+
+                if (!data.sessions || data.sessions.length === 0) {
+                    list.innerHTML = '<div class="text-center text-gray-500 text-sm mt-10">暂无作品</div>';
+                    return;
+                }
+
+                // 获取当前正在编辑的文件名，用于高亮
+                const currentFile = document.getElementById('novelPath').title.split(/[\\/]/).pop();
+
+                list.innerHTML = data.sessions.map(item => {
+                    const isActive = item.filename === currentFile;
+                    const activeClass = isActive ? 'bg-white/10 border-l-2 border-white' : 'hover:bg-white/5 border-l-2 border-transparent';
+                    const time = new Date(item.updated_at * 1000).toLocaleDateString();
+
+                    // 去掉 .txt 后缀显示
+                    const displayName = item.filename.replace('.txt', '');
+
+                    return `
+                        <div onclick="switchSession('${item.filename}')" class="cursor-pointer p-3 rounded-r-lg transition-colors ${activeClass} group">
+                            <div class="flex justify-between items-center mb-1">
+                                <span class="font-bold text-gray-200 text-sm truncate w-32">${displayName}</span>
+                                <span class="text-[10px] text-gray-600">${time}</span>
+                            </div>
+                            <div class="text-xs text-gray-500 truncate group-hover:text-gray-400">${item.preview}</div>
+                        </div>
+                    `;
+                }).join('');
+
+            } catch (e) {
+                list.innerHTML = `<div class="text-center text-red-400 text-sm mt-4">加载失败</div>`;
+            }
+        }
+
+        async function switchSession(filename) {
+            try {
+                // 1. 切换后端文件
+                await apiFetch('/api/switch_session', {
+                    method: 'POST',
+                    body: JSON.stringify({ filename: filename })
+                });
+                toggleSidebar(); // 关闭侧边栏
+                await loadConfig(); // 刷新配置（路径）
+                await refreshNovel(); // 刷新顶部文本
+
+                // 2. 加载并还原对话历史
+                await restoreChatHistory();
+
+            } catch(e) {
+                alert("切换失败: " + e);
+            }
+        }
+
+        async function restoreChatHistory() {
+            const chatArea = document.getElementById('chatArea');
+            chatArea.innerHTML = '<div class="text-center text-gray-600 text-sm py-4"><span class="animate-spin inline-block">↻</span> 正在恢复现场...</div>';
+
+            try {
+                // 获取历史记录
+                const res = await apiFetch('/api/history', { method: 'POST' });
+                const data = await res.json();
+                chatArea.innerHTML = ''; // 清空加载提示
+
+                if (!data.history || data.history.length === 0) return;
+
+                // 历史记录目前是倒序的 (最新的在前)，我们需要正序渲染
+                // 或者后端改一下？目前后端是 history[::-1]
+                // 我们在前端 reverse 回来，变成 [最早, ..., 最新]
+                const timeline = data.history.reverse();
+
+                // 遍历重建卡片
+                // 注意：历史记录里 user 和 assistant 是分开的 block
+                // 我们需要把它们组合展示，或者直接按 block 渲染
+                // 现在的逻辑是：每个 block (无论是 user 还是 assistant) 都渲染为一个卡片？
+                // 不，我们的 UI 是：
+                // User Prompt -> (无卡片，直接发给后端) -> AI 生成卡片 (包含 Prompt)
+                // 所以我们主要关心 assistant 的 block，因为它包含了 content 和对应的 prompt
+
+                for (const item of timeline) {
+                    if (item.status === 'discarded') continue; // 跳过已丢弃的
+
+                    // 只渲染 assistant 类型的 block，因为其中包含了当时的 user prompt
+                    // 如果有独立的 user block，我们可以选择忽略，或者单独渲染
+                    // 之前的逻辑是 save 时存了 prompt 字段在 assistant block 里
+
+                    if (item.role === 'assistant') {
+                        // 恢复卡片
+                        const cardId = createResultCard(item.prompt || "续写内容");
+                        const card = document.getElementById(cardId);
+
+                        // 填充内容
+                        const contentDiv = card.querySelector('.content-text');
+                        contentDiv.innerHTML = marked.parse(item.content);
+                        card.querySelector('.raw-text').innerText = item.content;
+
+                        // 标记为已保存
+                        card.dataset.blockId = item.id;
+                        card.dataset.prompt = item.prompt;
+                        markCardSaved(card);
+                    }
+                }
+
+                // 滚动到底部
+                setTimeout(() => {
+                    chatArea.lastElementChild?.scrollIntoView({ behavior: 'smooth' });
+                }, 100);
+
+            } catch (e) {
+                chatArea.innerHTML = `<div class="text-center text-red-500 text-sm py-4">历史加载失败: ${e}</div>`;
+            }
         }
 
         // ================= 业务逻辑 =================
@@ -362,30 +534,38 @@
         function toggleConfig() { document.getElementById('configPanel').classList.toggle('hidden'); if(!document.getElementById('configPanel').classList.contains('hidden')) document.getElementById('modelList').classList.add('hidden'); }
         async function handleNewSession() {
             try {
+                // 1. 调用后端创建新文件
                 const res = await apiFetch('/api/new_session', { method: 'POST' });
                 const data = await res.json();
+
                 if (data.status === 'ok') {
+                    // 2. 清空界面 & 刷新状态
                     document.getElementById('chatArea').innerHTML = '';
-                    await loadConfig(); await refreshNovel();
+                    await loadConfig();
+                    await refreshNovel();
+
+                    // 3. 弹出大纲生成器（可选）
                     showNewNovelModal();
                 }
-            } catch(e) { alert("新建失败: " + e); }
+            } catch(e) {
+                alert("新建失败: " + e);
+            }
         }
 
-        function showNewNovel() { handleNewSession(); }
-        function showNewNovelModal() { document.getElementById('newNovelModal').classList.remove('hidden'); }
+        function showNewNovel() {
+            handleNewSession();
+        }
+
+        function showNewNovelModal() {
+             document.getElementById('newNovelModal').classList.remove('hidden');
+        }
+
         function hideNewNovel() { document.getElementById('newNovelModal').classList.add('hidden'); }
         function showHelp() { document.getElementById('helpModal').classList.remove('hidden'); }
         function hideHelp() { document.getElementById('helpModal').classList.add('hidden'); }
 
         // ================= 核心流式处理 =================
-        let currentController = null; // AbortController
-        let isGenerating = false;     // 生成状态
-
-        function onMainBtnClick() {
-            if (isGenerating) stopGeneration();
-            else generate();
-        }
+        let currentController = null; // 用于控制终止请求
 
         function stopGeneration() {
             if (currentController) {
@@ -396,29 +576,35 @@
 
         async function handleStreamRequest(url, body, cardTitle, isOutline = false) {
             const btn = document.getElementById('generateBtn');
+            const stopBtn = document.getElementById('stopBtn');
             const icon = document.getElementById('btnIcon');
             const loader = document.getElementById('btnLoader');
 
-            // 进入生成状态
-            isGenerating = true;
-            btn.innerHTML = `<span class="font-bold text-lg leading-none mr-1">||</span> <span class="text-sm font-medium">暂停</span>`; // 切换为暂停样式
+            // ✅ 修改点：不要 hidden 掉 generateBtn（否则父容器宽度会归零导致“右移”）
+            // 切换按钮状态：发送按钮原地“被覆盖”，再次点击就暂停
+            btn.classList.add('invisible', 'pointer-events-none');
+            stopBtn.classList.remove('hidden');
+
+            // 准备 AbortController
+            currentController = new AbortController();
+            const signal = currentController.signal;
 
             const cardId = createResultCard(cardTitle);
             const card = document.getElementById(cardId);
+
             if (body.user_prompt) card.dataset.prompt = body.user_prompt;
             else if (isOutline) card.dataset.prompt = `[大纲] 主角:${body.protagonist} 风格:${body.style}`;
 
             const contentDiv = card.querySelector('.content-text');
             contentDiv.classList.add('cursor-blink');
             let accumulatedText = ""; let targetPath = null;
-            currentController = new AbortController();
 
             try {
                 const response = await fetch(url, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${TOKEN}` },
                     body: JSON.stringify(body),
-                    signal: currentController.signal
+                    signal: signal // 绑定信号
                 });
                 if (response.status === 401) { doLogout(); return; }
                 const reader = response.body.getReader();
@@ -447,34 +633,31 @@
             } catch (e) {
                 if (e.name === 'AbortError') {
                     contentDiv.insertAdjacentHTML('beforeend', '<br><span class="text-red-400 text-xs italic">[已暂停输出]</span>');
-                    card.classList.add('generation-stopped');
+                    card.classList.add('generation-stopped'); // 标记为已暂停，防止自动采纳
                 } else {
                     contentDiv.innerText = accumulatedText + `\n[出错: ${e}]`;
                 }
             } finally {
                 contentDiv.classList.remove('cursor-blink');
-                // 恢复为发送状态
-                isGenerating = false;
-                btn.innerHTML = `<span id="btnIcon" class="text-lg">➤</span><div id="btnLoader" class="loader hidden"></div>`;
+                // ✅ 修改点：恢复按钮状态（仍然不改变宽度/位置）
+                stopBtn.classList.add('hidden');
+                btn.classList.remove('invisible', 'pointer-events-none');
                 currentController = null;
+
                 enableCardActions(cardId, targetPath);
             }
         }
 
         async function createOutline() {
-            hideNewNovel();
-            document.getElementById('chatArea').innerHTML = '';
-            // 重置顶部状态
-            document.getElementById('novelPath').innerText = "新作品.txt";
-            document.getElementById('novelPreview').innerText = "正在构思大纲...";
-            document.getElementById('wordCount').innerText = "0 字";
-            expandHeader();
+            hideNewNovel(); // 这里的 NewNovel 指的是弹窗
+            // 不需要再清空了，因为 handleNewSession 已经清空过了
 
             const req = {
                 protagonist: document.getElementById('new_name').value, age: document.getElementById('new_age').value,
                 style: document.getElementById('new_style').value, plot: document.getElementById('new_plot').value,
                 word_count: document.getElementById('new_count').value
             };
+            // 现在的逻辑：直接在当前（新创建的）文件中生成大纲
             await handleStreamRequest('/api/outline', req, "🧠 大纲生成中", true);
         }
 
@@ -482,10 +665,6 @@
             const pendingBtns = document.querySelectorAll('.float-actions button:last-child');
             for (const btn of pendingBtns) {
                 if (btn.innerText.includes('采纳') && !btn.disabled) {
-                    // 检查是否暂停卡片
-                    const card = btn.closest('.glass');
-                    if (card && card.classList.contains('generation-stopped')) continue;
-
                     const action = btn.getAttribute('onclick');
                     if (action) { btn.innerText = "自动采纳中..."; await eval(action); }
                 }
@@ -496,108 +675,45 @@
             await handleStreamRequest('/api/generate', { user_prompt: userPrompt || null }, "✍️ 正在续写");
         }
 
-        // ================= Sidebar & History =================
-        function toggleSidebar() {
-            const sidebar = document.getElementById('historySidebar');
-            const backdrop = document.getElementById('historySidebarBackdrop');
-            if (sidebar.classList.contains('-translate-x-full')) {
-                sidebar.classList.remove('-translate-x-full');
-                backdrop.classList.remove('hidden');
-                setTimeout(() => backdrop.classList.remove('opacity-0'), 10);
-                loadSessions();
-            } else {
-                sidebar.classList.add('-translate-x-full');
-                backdrop.classList.add('opacity-0');
-                setTimeout(() => backdrop.classList.add('hidden'), 300);
-            }
-        }
+        // ================= Header UI =================
+        let autoCollapseTimer;
 
-        async function loadSessions() {
-            const list = document.getElementById('sessionList');
-            list.innerHTML = '<div class="text-center text-gray-500 text-sm mt-4"><span class="animate-spin inline-block">↻</span> 加载中...</div>';
-            try {
-                const res = await apiFetch('/api/sessions', { method: 'POST' });
-                const data = await res.json();
-                if (!data.sessions || data.sessions.length === 0) {
-                    list.innerHTML = '<div class="text-center text-gray-500 text-sm mt-10">暂无作品</div>';
-                    return;
-                }
-                const currentFile = document.getElementById('novelPath').title.split(/[\\/]/).pop();
-                list.innerHTML = data.sessions.map(item => {
-                    const isActive = item.filename === currentFile;
-                    const activeClass = isActive ? 'bg-white/10 border-l-2 border-white' : 'hover:bg-white/5 border-l-2 border-transparent';
-                    const time = new Date(item.updated_at * 1000).toLocaleDateString();
-                    const displayName = item.filename.replace('.txt', '');
-                    return `
-                        <div onclick="switchSession('${item.filename}')" class="cursor-pointer p-3 rounded-r-lg transition-colors ${activeClass} group">
-                            <div class="flex justify-between items-center mb-1">
-                                <span class="font-bold text-gray-200 text-sm truncate w-32">${displayName}</span>
-                                <span class="text-[10px] text-gray-600">${time}</span>
-                            </div>
-                            <div class="text-xs text-gray-500 truncate group-hover:text-gray-400">${item.preview}</div>
-                        </div>
-                    `;
-                }).join('');
-            } catch (e) { list.innerHTML = `<div class="text-center text-red-400 text-sm mt-4">加载失败</div>`; }
-        }
-
-        async function switchSession(filename) {
-            try {
-                await apiFetch('/api/switch_session', { method: 'POST', body: JSON.stringify({ filename: filename }) });
-                toggleSidebar(); await loadConfig(); await refreshNovel(); await restoreChatHistory();
-            } catch(e) { alert("切换失败: " + e); }
-        }
-
-        async function restoreChatHistory() {
-            const chatArea = document.getElementById('chatArea');
-            chatArea.innerHTML = '<div class="text-center text-gray-600 text-sm py-4"><span class="animate-spin inline-block">↻</span> 正在恢复现场...</div>';
-            try {
-                const res = await apiFetch('/api/history', { method: 'POST' });
-                const data = await res.json();
-                chatArea.innerHTML = '';
-                if (!data.history || data.history.length === 0) return;
-                const timeline = data.history.reverse();
-
-                for (const item of timeline) {
-                    if (item.status === 'discarded') continue;
-                    if (item.role === 'assistant') {
-                        const cardId = createResultCard(item.prompt || "续写内容");
-                        const card = document.getElementById(cardId);
-                        const contentDiv = card.querySelector('.content-text');
-                        contentDiv.innerHTML = marked.parse(item.content);
-                        card.querySelector('.raw-text').innerText = item.content;
-                        card.dataset.blockId = item.id;
-                        card.dataset.prompt = item.prompt;
-                        markCardSaved(card);
-                    }
-                }
-                setTimeout(() => chatArea.lastElementChild?.scrollIntoView({ behavior: 'smooth' }), 100);
-            } catch (e) { chatArea.innerHTML = `<div class="text-center text-red-500 text-sm py-4">历史加载失败: ${e}</div>`; }
-        }
-
-        // ================= Header UI & Logic =================
         function collapseHeader() {
+            // 一级关闭：变为吸附态
             const header = document.getElementById('topHeader');
-            header.classList.add('header-collapsed');
-            header.classList.remove('is-expanded'); // 收起全文
+            header.classList.add('is-collapsed');
+            header.classList.remove('is-expanded'); // 确保移除全文态
         }
+
         function expandHeader() {
+            // 一级打开：变为预览态
             const header = document.getElementById('topHeader');
-            header.classList.remove('header-collapsed');
+            header.classList.remove('is-collapsed');
             if(autoCollapseTimer) clearTimeout(autoCollapseTimer);
         }
+
         function toggleFullView() {
+            // 二级打开/关闭：在预览态和全文态之间切换
             const header = document.getElementById('topHeader');
             const icon = document.getElementById('previewToggleIcon');
+
             if (header.classList.contains('is-expanded')) {
+                // -> 回到预览态
                 header.classList.remove('is-expanded');
-                icon.innerText = "▼"; icon.classList.remove('text-blue-500');
+                icon.innerText = "▼";
+                icon.classList.remove('text-blue-500');
             } else {
+                // -> 进入全文态
                 header.classList.add('is-expanded');
-                icon.innerText = "▲"; icon.classList.add('text-blue-500');
+                icon.innerText = "▲";
+                icon.classList.add('text-blue-500');
             }
         }
-        function togglePreview() { toggleFullView(); } // 别名兼容
+
+        function startAutoCollapse() {
+            if(autoCollapseTimer) clearTimeout(autoCollapseTimer);
+            autoCollapseTimer = setTimeout(collapseHeader, 3000);
+        }
 
         function copyNovelContent() {
             const text = document.getElementById('novelPreview').innerText;
@@ -623,6 +739,41 @@
             } catch (err) { alert("复制失败: " + err); }
         }
 
+        // ================= Card UI =================
+        function createResultCard(title) {
+            const chatArea = document.getElementById('chatArea');
+            const cardId = 'card-' + Date.now();
+            const cardHtml = `
+                <div id="${cardId}" class="glass rounded-xl p-0 overflow-hidden border border-white/10 relative mb-4">
+                    <div class="bg-white/5 px-4 py-2 border-b border-white/5 flex justify-between items-center">
+                        <span class="text-xs text-gray-400 font-bold tracking-wider uppercase">${title}</span>
+                    </div>
+                    <div class="p-4 pb-12 prose prose-invert prose-sm text-gray-300 leading-relaxed font-serif max-w-none">
+                        <div class="content-text min-h-[40px]"></div>
+                        <div class="raw-text hidden"></div>
+                    </div>
+                    <div class="float-actions opacity-0 transition-opacity duration-300"></div>
+                </div>
+            `;
+            chatArea.insertAdjacentHTML('beforeend', cardHtml);
+            chatArea.lastElementChild.scrollIntoView({ behavior: 'smooth' });
+            return cardId;
+        }
+
+        function enableCardActions(cardId, targetPath = null) {
+            const card = document.getElementById(cardId);
+            if (!card) return;
+            const btnContainer = card.querySelector('.float-actions');
+            const saveAction = targetPath ? `saveOutline('${cardId}', '${targetPath.replace(/\\/g, '\\\\')}')` : `saveText('${cardId}')`;
+            btnContainer.innerHTML = `
+                <button onclick="removeCard('${cardId}')" class="text-xs bg-black/60 backdrop-blur text-gray-500 hover:text-gray-300 hover:bg-gray-800 px-3 py-1.5 rounded-lg border border-white/10 transition-colors">丢弃</button>
+                <button onclick="${saveAction}" class="text-xs bg-gray-200/90 backdrop-blur text-gray-900 px-3 py-1.5 rounded-lg hover:bg-gray-300 border border-white/10 shadow-lg font-medium transition-colors">采纳并写入</button>
+            `;
+            btnContainer.classList.remove('opacity-0');
+            card.querySelector('.text-gray-400').className = "text-xs text-gray-500 font-bold tracking-wider uppercase";
+            card.querySelector('.text-gray-500').innerText = "✨ 生成完成";
+        }
+
         // ================= Save & Discard =================
         async function checkAutoRename() {
             try {
@@ -638,12 +789,14 @@
                 }
             } catch(e) {}
         }
+
         async function saveText(cardId) {
             const card = document.getElementById(cardId);
             const text = card.querySelector('.raw-text').innerText;
             const prompt = card.dataset.prompt || "";
             await executeSave(card, text, prompt);
         }
+
         async function saveOutline(cardId, targetPath) {
             const card = document.getElementById(cardId);
             const text = card.querySelector('.raw-text').innerText;
@@ -655,10 +808,13 @@
                 const res = await apiFetch('/api/save', { method: 'POST', body: JSON.stringify({ content: text, prompt: prompt }) });
                 const data = await res.json();
                 if (data.status === 'saved') {
-                    card.dataset.blockId = data.block_id; markCardSaved(card); await refreshNovel(); setTimeout(checkAutoRename, 1000);
+                    card.dataset.blockId = data.block_id;
+                    markCardSaved(card);
+                    await refreshNovel(); setTimeout(checkAutoRename, 1000);
                 }
             } catch (e) { alert("保存失败: " + e); btn.innerText = "重试"; btn.disabled = false; }
         }
+
         async function executeSave(card, text, prompt) {
             const btn = card.querySelector('.float-actions button:last-child');
             btn.innerText = "写入中..."; btn.disabled = true;
@@ -666,29 +822,43 @@
                 const res = await apiFetch('/api/save', { method: 'POST', body: JSON.stringify({ content: text, prompt: prompt }) });
                 const data = await res.json();
                 if (data.status === 'saved') {
-                    card.dataset.blockId = data.block_id; markCardSaved(card); await refreshNovel(); setTimeout(checkAutoRename, 1000);
+                    card.dataset.blockId = data.block_id;
+                    markCardSaved(card);
+                    await refreshNovel(); setTimeout(checkAutoRename, 1000);
                 }
             } catch (e) { alert("保存失败: " + e); btn.innerText = "重试"; btn.disabled = false; }
         }
+
         function markCardSaved(card) {
             const btn = card.querySelector('.float-actions button:last-child');
-            card.classList.remove('border-white/10'); card.classList.add('border-white/20', 'opacity-60');
-            btn.innerText = "已写入"; btn.className = "text-xs bg-transparent text-gray-500 px-3 py-1 rounded-lg cursor-default border border-transparent";
+            card.classList.remove('border-white/10');
+            card.classList.add('border-white/20', 'opacity-60');
+            btn.innerText = "已写入";
+            btn.className = "text-xs bg-transparent text-gray-500 px-3 py-1 rounded-lg cursor-default border border-transparent";
             const discardBtn = card.querySelector('.float-actions button:first-child');
-            if(discardBtn) { discardBtn.innerText = "撤销"; discardBtn.className = "text-xs bg-red-900/30 text-red-400 hover:bg-red-900/50 px-3 py-1.5 rounded-lg border border-red-500/20 transition-colors"; }
+            if(discardBtn) {
+                discardBtn.innerText = "撤销";
+                discardBtn.className = "text-xs bg-red-900/30 text-red-400 hover:bg-red-900/50 px-3 py-1.5 rounded-lg border border-red-500/20 transition-colors";
+            }
         }
+
         async function removeCard(cardId) {
             const card = document.getElementById(cardId);
             if (!confirm('确定要丢弃/撤销这段内容吗？')) return;
             const blockId = card.dataset.blockId;
             if (blockId) {
                 const btn = card.querySelector('.float-actions button:first-child');
-                const originText = btn.innerText; btn.innerText = "撤销中...";
+                const originText = btn.innerText;
+                btn.innerText = "撤销中...";
                 try {
                     const res = await apiFetch('/api/discard', { method: 'POST', body: JSON.stringify({ block_id: blockId }) });
                     if (res.ok) {
                         card.remove(); await refreshNovel();
-                        const toast = document.createElement('div'); toast.className = 'fixed bottom-20 left-1/2 transform -translate-x-1/2 bg-red-900/80 text-white px-4 py-2 rounded-full shadow-lg text-xs z-50'; toast.innerText = '已撤销'; document.body.appendChild(toast); setTimeout(() => toast.remove(), 2000);
+                        const toast = document.createElement('div');
+                        toast.className = 'fixed bottom-20 left-1/2 transform -translate-x-1/2 bg-red-900/80 text-white px-4 py-2 rounded-full shadow-lg text-xs z-50';
+                        toast.innerText = '已从文件中撤销并删除';
+                        document.body.appendChild(toast);
+                        setTimeout(() => toast.remove(), 2000);
                     } else { alert("撤销失败"); btn.innerText = originText; }
                 } catch (e) { alert("撤销出错: " + e); btn.innerText = originText; }
             } else { card.remove(); }
