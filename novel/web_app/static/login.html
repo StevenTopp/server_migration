@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AI 小说工坊 - 登录</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #0f1117; color: #e5e7eb; font-family: -apple-system, system-ui, sans-serif; }
+        .glass { background: rgba(30, 32, 40, 0.8); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); }
+        .input-field { width: 100%; background: #1f2937; border: 1px solid #374151; padding: 12px; border-radius: 8px; color: white; margin-bottom: 16px; outline: none; transition: border 0.2s; }
+        .input-field:focus { border-color: #3b82f6; }
+        .btn-primary { width: 100%; background: #2563eb; color: white; padding: 12px; border-radius: 8px; font-weight: bold; transition: opacity 0.2s; }
+        .btn-primary:active { opacity: 0.9; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body class="h-screen flex items-center justify-center p-4">
+
+    <div class="w-full max-w-md glass rounded-2xl p-8 shadow-2xl animate-fade-in">
+        <h1 class="text-3xl font-bold text-center mb-2 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">Novel Copilot</h1>
+        <p class="text-gray-400 text-center text-sm mb-8">您的私人 AI 写作助手</p>
+
+        <!-- 登录表单 -->
+        <div id="loginForm">
+            <h2 class="text-xl font-bold mb-4 text-white">登录</h2>
+            <input id="login_user" class="input-field" placeholder="用户名">
+            <input id="login_pass" type="password" class="input-field" placeholder="密码">
+
+            <button onclick="doLogin()" class="btn-primary mb-4">进入工坊</button>
+
+            <div class="text-center text-sm text-gray-400">
+                还没有账号？ <a href="#" onclick="toggleMode()" class="text-blue-400 hover:text-blue-300">立即注册</a>
+            </div>
+        </div>
+
+        <!-- 注册表单 -->
+        <div id="registerForm" class="hidden">
+            <h2 class="text-xl font-bold mb-4 text-white">注册新账号</h2>
+            <input id="reg_user" class="input-field" placeholder="设置用户名 (至少3位)">
+            <input id="reg_pass" type="password" class="input-field" placeholder="设置密码">
+            <input id="reg_confirm" type="password" class="input-field" placeholder="确认密码">
+
+            <button onclick="doRegister()" class="btn-primary bg-purple-600 mb-4">注册并登录</button>
+
+            <div class="text-center text-sm text-gray-400">
+                已有账号？ <a href="#" onclick="toggleMode()" class="text-blue-400 hover:text-blue-300">返回登录</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 页面加载时检查是否已有 token，有则跳转
+        if(localStorage.getItem('token')) {
+            window.location.href = '/static/index.html';
+        }
+
+        function toggleMode() {
+            document.getElementById('loginForm').classList.toggle('hidden');
+            document.getElementById('registerForm').classList.toggle('hidden');
+        }
+
+        async function doLogin() {
+            const user = document.getElementById('login_user').value.trim();
+            const pass = document.getElementById('login_pass').value;
+            if(!user || !pass) return alert('请输入完整');
+
+            try {
+                const res = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ username: user, password: pass })
+                });
+                const data = await res.json();
+
+                if(data.status === 'ok') {
+                    localStorage.setItem('token', data.token);
+                    localStorage.setItem('username', data.username);
+                    window.location.href = '/static/index.html';
+                } else {
+                    alert(data.detail || '登录失败');
+                }
+            } catch(e) {
+                alert('网络错误');
+            }
+        }
+
+        async function doRegister() {
+            const user = document.getElementById('reg_user').value.trim();
+            const pass = document.getElementById('reg_pass').value;
+            const confirm = document.getElementById('reg_confirm').value;
+
+            if(!user || !pass || !confirm) return alert('请输入完整');
+            if(pass !== confirm) return alert('两次密码不一致');
+
+            try {
+                const res = await fetch('/api/register', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ username: user, password: pass, confirm_password: confirm })
+                });
+                const data = await res.json();
+
+                if(data.status === 'ok') {
+                    alert('注册成功！请直接登录');
+                    toggleMode();
+                    // 自动填入
+                    document.getElementById('login_user').value = user;
+                    document.getElementById('login_pass').value = pass;
+                } else {
+                    alert(data.detail || '注册失败');
+                }
+            } catch(e) {
+                alert('网络错误');
+            }
+        }
+    </script>
+</body>
+</html>

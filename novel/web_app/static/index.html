@@ -41,12 +41,20 @@
 
     <!-- 顶部栏 -->
     <header class="h-14 flex items-center justify-between px-4 border-b border-gray-800 bg-[#1e2028]">
-        <h1 class="font-bold text-lg bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">Novel Copilot</h1>
+        <div class="flex items-center gap-2">
+            <h1 class="font-bold text-lg bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">Novel Copilot</h1>
+            <span id="currentUser" class="text-xs px-2 py-0.5 rounded bg-gray-800 text-gray-400"></span>
+        </div>
         <div class="flex gap-3">
             <button onclick="showNewNovel()" class="text-sm bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded-full flex items-center gap-1">
                 <span>✨ 新建</span>
             </button>
             <button onclick="toggleConfig()" class="text-gray-400 hover:text-white text-xl">⚙️</button>
+            <button onclick="doLogout()" class="text-gray-400 hover:text-red-400 ml-2" title="退出登录">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 102 0V4a1 1 0 00-1-1zm10.293 9.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L14.586 9H7a1 1 0 100 2h7.586l-1.293 1.293z" clip-rule="evenodd" />
+                </svg>
+            </button>
         </div>
     </header>
 
@@ -87,7 +95,7 @@
         </div>
     </div>
 
-    <!-- 配置 Modal (已简化) -->
+    <!-- 配置 Modal -->
     <div id="configPanel" class="fixed inset-0 bg-black/80 z-50 hidden flex items-center justify-center p-4">
         <div class="bg-[#1f2937] w-full max-w-md rounded-lg p-6 shadow-xl border border-gray-700 max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">
             <h2 class="text-xl font-bold mb-4 text-white">⚙️ 偏好设置</h2>
@@ -129,7 +137,7 @@
 
         <!-- 上下文预览卡片 (可折叠) -->
         <div class="glass rounded-xl p-3 sticky top-0 z-10 backdrop-blur-md shadow-lg border-b border-gray-700/50">
-            <!-- Header: 路径 | 字数 | 刷新 -->
+            <!-- Header -->
             <div class="flex justify-between items-center mb-1">
                 <div class="flex items-center gap-2 overflow-hidden flex-1 mr-2">
                     <span class="text-xs font-bold text-gray-500 uppercase flex-shrink-0">📄</span>
@@ -141,11 +149,9 @@
                 </div>
             </div>
 
-            <!-- Content: 点击展开/收起 -->
+            <!-- Content -->
             <div class="relative group cursor-pointer select-none" onclick="togglePreview()">
                 <div id="novelPreview" class="text-gray-400 text-xs leading-relaxed whitespace-pre-wrap border-l-2 border-gray-700 pl-3 transition-all duration-300 max-h-[3em] overflow-hidden opacity-80 hover:opacity-100">正在加载...</div>
-
-                <!-- 底部展开提示 -->
                 <div class="flex justify-center -mb-2 mt-1">
                     <span id="previewToggleIcon" class="text-[10px] text-gray-600 transition-transform duration-300">▼</span>
                 </div>
@@ -171,7 +177,40 @@
     </footer>
 
     <script>
-        // 状态变量
+        // ================= 认证守卫 =================
+        const TOKEN = localStorage.getItem('token');
+        const USERNAME = localStorage.getItem('username');
+
+        if (!TOKEN) {
+            window.location.href = '/static/login.html';
+        } else {
+            document.getElementById('currentUser').innerText = USERNAME;
+        }
+
+        // 统一的 Fetch 包装器，自动带上 Token
+        async function apiFetch(url, options = {}) {
+            const headers = {
+                ...options.headers,
+                'Authorization': `Bearer ${TOKEN}`,
+                'Content-Type': 'application/json'
+            };
+            const res = await fetch(url, { ...options, headers });
+            if (res.status === 401) {
+                // Token 过期或无效
+                doLogout();
+                return;
+            }
+            return res;
+        }
+
+        function doLogout() {
+            apiFetch('/api/logout', { method: 'POST' }); // 通知后端
+            localStorage.removeItem('token');
+            localStorage.removeItem('username');
+            window.location.href = '/static/login.html';
+        }
+
+        // ================= 业务逻辑 =================
         let currentConfig = {};
         const AVAILABLE_MODELS = ['gemini-3-flash', 'gemini-3-pro-high', 'gemini-3-pro-low', 'claude-sonnet-4-5', 'claude-opus-4-5-thinking'];
 
@@ -200,7 +239,7 @@
 
         async function loadConfig() {
             try {
-                const res = await fetch('/api/config');
+                const res = await apiFetch('/api/config');
                 currentConfig = await res.json();
                 document.getElementById('cfg_url').value = currentConfig.base_url;
                 document.getElementById('cfg_model').value = currentConfig.model;
@@ -212,20 +251,20 @@
 
         async function saveConfig() {
             const newConfig = {
-                file_path: currentConfig.file_path,
-                api_key: currentConfig.api_key,
+                file_path: currentConfig.file_path, // 保持不变，不让前端修改
+                api_key: currentConfig.api_key,     // 保持不变
                 base_url: document.getElementById('cfg_url').value,
                 model: document.getElementById('cfg_model').value,
                 system_prompt_prefix: document.getElementById('cfg_sys').value,
                 user_prompt: document.getElementById('cfg_user').value
             };
-            await fetch('/api/config', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(newConfig) });
+            await apiFetch('/api/config', { method: 'POST', body: JSON.stringify(newConfig) });
             toggleConfig(); loadConfig();
         }
 
         async function refreshNovel() {
             try {
-                const res = await fetch('/api/novel');
+                const res = await apiFetch('/api/novel');
                 const data = await res.json();
                 document.getElementById('novelPreview').innerText = data.content || "(空文件，请点击“新建”或输入指令开始)";
                 if (data.path) {
@@ -262,11 +301,21 @@
             let targetPath = null;
 
             try {
+                // 使用原生 fetch 以获取 stream，手动添加 header
                 const response = await fetch(url, {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${TOKEN}`
+                    },
                     body: JSON.stringify(body)
                 });
+
+                if (response.status === 401) {
+                    doLogout();
+                    return;
+                }
+
                 const reader = response.body.getReader();
                 const decoder = new TextDecoder();
 
@@ -326,19 +375,15 @@
         function togglePreview() {
             const el = document.getElementById('novelPreview');
             const icon = document.getElementById('previewToggleIcon');
-
-            // 检查当前是否折叠 (通过 max-h class 判断)
             if (el.classList.contains('max-h-[3em]')) {
-                // 展开
                 el.classList.remove('max-h-[3em]', 'overflow-hidden');
-                el.classList.add('max-h-64', 'overflow-y-auto'); // 最大展开高度
+                el.classList.add('max-h-64', 'overflow-y-auto');
                 icon.innerText = "▲";
                 icon.classList.add('text-blue-500');
             } else {
-                // 收起
                 el.classList.add('max-h-[3em]', 'overflow-hidden');
                 el.classList.remove('max-h-64', 'overflow-y-auto');
-                el.scrollTop = 0; // 回到顶部
+                el.scrollTop = 0;
                 icon.innerText = "▼";
                 icon.classList.remove('text-blue-500');
             }
@@ -356,7 +401,6 @@
                         <div class="content-text min-h-[40px]"></div>
                         <div class="raw-text hidden"></div>
                     </div>
-                    <!-- 悬浮操作栏 -->
                     <div class="float-actions opacity-0 transition-opacity duration-300"></div>
                 </div>
             `;
@@ -368,7 +412,6 @@
         function enableCardActions(cardId, targetPath = null) {
             const card = document.getElementById(cardId);
             if (!card) return;
-
             const btnContainer = card.querySelector('.float-actions');
             const saveAction = targetPath
                 ? `saveOutline('${cardId}', '${targetPath.replace(/\\/g, '\\\\')}')`
@@ -385,24 +428,19 @@
 
         // ================= 保存逻辑 =================
         async function checkAutoRename() {
-            // 尝试触发自动重命名（后台会判断是否需要重命名）
             try {
-                const res = await fetch('/api/auto_rename', { method: 'POST' });
+                const res = await apiFetch('/api/auto_rename', { method: 'POST' });
                 const data = await res.json();
                 if (data.status === 'renamed') {
-                    // 如果重命名成功，刷新界面
                     await loadConfig();
                     await refreshNovel();
-                    // 显示一个非阻塞的提示
                     const toast = document.createElement('div');
                     toast.className = 'fixed top-16 right-4 bg-green-600 text-white px-4 py-2 rounded-lg shadow-xl text-sm z-50 animate-fade-in-down';
                     toast.innerText = `📚 已自动命名为: ${data.new_name}`;
                     document.body.appendChild(toast);
                     setTimeout(() => toast.remove(), 3000);
                 }
-            } catch(e) {
-                console.log("Auto rename check failed:", e);
-            }
+            } catch(e) { console.log("Auto rename failed:", e); }
         }
 
         async function saveText(cardId) {
@@ -418,17 +456,22 @@
             btn.innerText = "创建中..."; btn.disabled = true;
 
             try {
-                const resConfig = await fetch('/api/config');
-                const cfg = await resConfig.json();
-                cfg.file_path = targetPath;
-                await fetch('/api/config', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(cfg) });
-                await fetch('/api/save', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ content: text }) });
+                // 注意：多用户模式下，不能直接通过 config 接口改 file_path
+                // 我们调用一个专门的 switch_file 接口来安全切换当前文件
+                await apiFetch('/api/switch_file', {
+                    method: 'POST',
+                    body: JSON.stringify({ target_path: targetPath })
+                });
+
+                // 然后保存内容
+                await apiFetch('/api/save', {
+                    method: 'POST',
+                    body: JSON.stringify({ content: text })
+                });
 
                 markCardSaved(card);
                 loadConfig();
                 refreshNovel();
-
-                // 触发一次自动重命名检查
                 setTimeout(checkAutoRename, 1000);
 
             } catch (e) {
@@ -441,13 +484,13 @@
             const btn = card.querySelector('.float-actions button:last-child');
             btn.innerText = "写入中..."; btn.disabled = true;
             try {
-                await fetch('/api/save', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ content: text }) });
+                await apiFetch('/api/save', {
+                    method: 'POST',
+                    body: JSON.stringify({ content: text })
+                });
                 markCardSaved(card);
                 refreshNovel();
-
-                // 每次保存都检查一下是否还在用时间戳文件名，如果是就尝试重命名
                 setTimeout(checkAutoRename, 1000);
-
             } catch (e) {
                 alert("保存失败: " + e);
                 btn.innerText = "重试"; btn.disabled = false;
