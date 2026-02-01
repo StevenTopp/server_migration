@@ -49,6 +49,7 @@
             <button onclick="showNewNovel()" class="text-sm bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded-full flex items-center gap-1">
                 <span>✨ 新建</span>
             </button>
+            <button onclick="showHelp()" class="text-gray-400 hover:text-white text-xl" title="使用说明">❓</button>
             <button onclick="toggleConfig()" class="text-gray-400 hover:text-white text-xl">⚙️</button>
             <button onclick="doLogout()" class="text-gray-400 hover:text-red-400 ml-2" title="退出登录">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -91,6 +92,56 @@
             <div class="mt-6 flex justify-end gap-3">
                 <button onclick="hideNewNovel()" class="px-4 py-2 rounded text-gray-400 hover:bg-gray-800">取消</button>
                 <button onclick="createOutline()" class="px-5 py-2 rounded bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold hover:opacity-90">开始生成</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 使用说明 Modal -->
+    <div id="helpModal" class="fixed inset-0 bg-black/80 z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-[#1f2937] w-full max-w-2xl rounded-xl p-0 shadow-2xl border border-gray-700 max-h-[85vh] flex flex-col">
+            <!-- Header -->
+            <div class="p-4 border-b border-gray-700 flex justify-between items-center bg-[#2a303c] rounded-t-xl">
+                <h2 class="text-lg font-bold text-white flex items-center gap-2">📖 使用指南</h2>
+                <button onclick="hideHelp()" class="text-gray-400 hover:text-white text-2xl">&times;</button>
+            </div>
+
+            <!-- Content -->
+            <div class="p-6 overflow-y-auto prose prose-invert prose-sm max-w-none text-gray-300">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                    <div class="bg-gray-800/50 p-4 rounded-lg border border-gray-700">
+                        <h3 class="text-blue-400 mt-0">🚀 快速开始</h3>
+                        <ol class="text-sm space-y-1 pl-4 mb-0">
+                            <li>点击顶部 <strong>✨ 新建</strong> 按钮。</li>
+                            <li>输入主角、风格、大概剧情走向。</li>
+                            <li>AI 生成大纲，点击 <strong>采纳并写入</strong>。</li>
+                            <li>系统自动创建新书并重命名。</li>
+                            <li>底部直接输入指令（或留空）开始续写。</li>
+                        </ol>
+                    </div>
+                    <div class="bg-gray-800/50 p-4 rounded-lg border border-gray-700">
+                        <h3 class="text-green-400 mt-0">🧠 核心机制</h3>
+                        <ul class="text-sm space-y-1 pl-4 mb-0">
+                            <li><strong>人机协同</strong>：生成的内容不会直接写入，需人工审核。</li>
+                            <li><strong>上下文记忆</strong>：AI 自动读取前文 8000 字。</li>
+                            <li><strong>数据隔离</strong>：多人使用互不干扰，数据独立存储。</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <h3>🎮 进阶技巧</h3>
+                <ul>
+                    <li><strong>留空发送</strong>：如果输入框不写内容直接点击发送，AI 会按照“默认指令”自动续写剧情（推荐）。</li>
+                    <li><strong>微操指令</strong>：输入“让主角发现一个宝箱”或“写一场激烈的打戏”，AI 会精准执行。</li>
+                    <li><strong>风格破限</strong>：在设置(⚙️)中的 <code>System Prompt</code> 输入“暗黑风格”、“无道德限制”等设定，可改变 AI 的底层文风。</li>
+                </ul>
+
+                <h3>📂 文件管理</h3>
+                <p>所有小说保存在服务器的 <code>data/你的用户名/</code> 目录下。系统会在你第一次采纳大纲后，自动根据内容将文件重命名为书籍名称。</p>
+            </div>
+
+            <!-- Footer -->
+            <div class="p-4 border-t border-gray-700 bg-[#2a303c] rounded-b-xl flex justify-end">
+                <button onclick="hideHelp()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm">明白了</button>
             </div>
         </div>
     </div>
@@ -283,6 +334,8 @@
         }
         function showNewNovel() { document.getElementById('newNovelModal').classList.remove('hidden'); }
         function hideNewNovel() { document.getElementById('newNovelModal').classList.add('hidden'); }
+        function showHelp() { document.getElementById('helpModal').classList.remove('hidden'); }
+        function hideHelp() { document.getElementById('helpModal').classList.add('hidden'); }
 
         // ================= 核心流式处理 =================
         async function handleStreamRequest(url, body, cardTitle, isOutline = false) {

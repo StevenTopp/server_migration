@@ -57,7 +57,7 @@ class UserRegister(BaseModel):
     confirm_password: str
 
 class GenerateRequest(BaseModel):
-    user_prompt: str = None
+    user_prompt: Optional[str] = None
 
 class SaveRequest(BaseModel):
     content: str
