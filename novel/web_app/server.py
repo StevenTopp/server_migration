@@ -469,7 +469,7 @@ async def generate_novel(req: GenerateRequest, username: str = Depends(get_curre
 
     # 隐藏的专家设定
     HIDDEN_PROMPT = "你是一名专业的作家，擅长小说创作。"
-    system_prompt = f"{HIDDEN_PROMPT}\n{config['system_prompt_prefix']}\n\n当前小说内容(截取末尾)：\n{context[-32000:]}"
+    system_prompt = f"{HIDDEN_PROMPT}\n{config['system_prompt_prefix']}\n\n当前小说内容：\n{context}"
     user_prompt = req.user_prompt if req.user_prompt else config["user_prompt"]
 
     messages = []
@@ -479,7 +479,7 @@ async def generate_novel(req: GenerateRequest, username: str = Depends(get_curre
             freecreate_prompt=config.get("freecreate_prompt", ""),
             pre_hidden_freecreate_prompt=config.get("pre_hidden_freecreate_prompt", "待补充"),
             post_hidden_freecreate_prompt=config.get("post_hidden_freecreate_prompt", ""),
-            context=context[-32000:], # 同样截取末尾 context
+            context=context, # 完整 context
             user_prompt=user_prompt
         )
         # 打印 prompt 以便于调试
