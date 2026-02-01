@@ -134,7 +134,7 @@ def get_user_config(username: str):
     default_config = {
         "base_url": "http://127.0.0.1:19000/v1",
         "api_key": "sk-c14a5dd7304f458fbc49acfd9889e74f",
-        "model": "gemini-3-pro",
+        "model": "gemini-2.5-flash",
         "file_path": ""
     }
 
@@ -495,6 +495,28 @@ async def switch_session(req: dict, username: str = Depends(get_current_user)):
     save_base_config_only(username, config)
 
     return {"status": "ok", "path": str(target_path)}
+
+@app.post("/api/new_session")
+async def new_session(username: str = Depends(get_current_user)):
+    config = get_user_config(username)
+
+    # 1. 生成新文件名
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    user_data_dir = DATA_ROOT / username
+    user_data_dir.mkdir(parents=True, exist_ok=True)
+
+    new_txt_path = user_data_dir / f"{timestamp}.txt"
+    new_json_path = user_data_dir / f"{timestamp}.json"
+
+    # 2. 创建空文件
+    new_txt_path.touch()
+    new_json_path.write_text("[]", encoding="utf-8")
+
+    # 3. 切换上下文
+    config["file_path"] = str(new_txt_path)
+    save_base_config_only(username, config)
+
+    return {"status": "ok", "filename": new_txt_path.name, "path": str(new_txt_path)}
 
 @app.post("/api/save")
 async def save_novel(req: SaveRequest, username: str = Depends(get_current_user)):
