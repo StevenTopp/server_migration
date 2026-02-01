@@ -444,7 +444,7 @@ async def generate_outline(req: OutlineRequest, username: str = Depends(get_curr
                 messages=messages,
                 temperature=0.9,
                 top_p=1,
-                max_tokens=50000,
+                max_tokens=10000,
                 stream=True
             )
             async for chunk in stream:
@@ -492,23 +492,37 @@ async def generate_novel(req: GenerateRequest, username: str = Depends(get_curre
         # 打印非自由模式下的 prompt 以便于调试
         print(f"DEBUG Normal Mode Messages: {json.dumps(messages, ensure_ascii=False, indent=2)}")
 
-    print(f"[{username}] 续写中(Streaming)...")
+    print(f"[{username}] 续写中... Mode: {'Free(Non-Stream)' if config.get('free_create_mode') else 'Normal(Stream)'}")
     client = get_openai_client(config)
 
     async def stream_generator():
         try:
-            # ✅ 使用异步流
-            stream = await client.chat.completions.create(
-                model=config["model"],
-                messages=messages,
-                temperature=0.9,
-                top_p=1,
-                max_tokens=30000,
-                stream=True
-            )
-            async for chunk in stream:
-                if chunk.choices[0].delta.content:
-                    yield chunk.choices[0].delta.content
+            if config.get("free_create_mode"):
+                # Free Mode: Non-streaming (wait for full completion) to avoid censorship interruption
+                resp = await client.chat.completions.create(
+                    model=config["model"],
+                    messages=messages,
+                    temperature=0.9,
+                    top_p=1,
+                    max_tokens=10000,
+                    stream=False
+                )
+                full_content = resp.choices[0].message.content
+                yield full_content
+            else:
+                # Normal Mode: Streaming
+                stream = await client.chat.completions.create(
+                    model=config["model"],
+                    messages=messages,
+                    temperature=0.9,
+                    top_p=1,
+                    max_tokens=10000,
+                    stream=True
+                )
+                async for chunk in stream:
+                    if chunk.choices[0].delta.content:
+                        yield chunk.choices[0].delta.content
+
         except Exception as e:
             yield f"\n[ERROR: {str(e)}]"
 
