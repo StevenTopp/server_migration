@@ -19,7 +19,7 @@
         .modal-enter { opacity: 0; transform: scale(0.95); }
         .modal-enter-active { opacity: 1; transform: scale(1); transition: all 0.2s; }
         /* 光标闪烁 */
-        .cursor-blink::after { content: '▋'; animation: blink 1s step-end infinite; color: #fafafa; margin-left: 2px; }
+        .cursor-blink::after { content: '|'; animation: blink 1s step-end infinite; color: #a1a1aa; margin-left: 1px; font-weight: 200; }
         @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
         /* 自定义滚动条 */
         ::-webkit-scrollbar { width: 5px; }
@@ -36,15 +36,24 @@
             gap: 8px;
             z-index: 10;
         }
-        /* 吸附态样式 */
+        /* 吸附态样式 - 使用 max-height 动画，避免位移遮挡 */
+        #topHeader {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            max-height: 400px; /* 展开时的估算最大高度 */
+            overflow: hidden;
+        }
         .header-collapsed {
-            transform: translateY(-80%);
-            opacity: 0.6;
+            max-height: 24px !important; /* 吸附时的高度 */
+            padding-top: 0 !important;
+            padding-bottom: 0 !important;
+            opacity: 0.8;
             cursor: pointer;
+            border-bottom-color: transparent !important;
+            background: rgba(24, 24, 27, 0.6) !important; /* 稍微透明一点 */
         }
         .header-collapsed:hover {
-            transform: translateY(0);
             opacity: 1;
+            background: rgba(24, 24, 27, 0.9) !important;
         }
         .header-collapsed .header-content {
             opacity: 0;
@@ -52,6 +61,7 @@
         }
         .header-collapsed .header-handle {
             opacity: 1;
+            pointer-events: auto;
         }
     </style>
 </head>
@@ -215,7 +225,8 @@
                     </div>
                     <div class="flex items-center gap-3 flex-shrink-0">
                         <span id="wordCount" class="text-xs text-gray-500 font-mono">0 字</span>
-                        <button onclick="refreshNovel()" class="text-xs text-gray-400 hover:text-white px-1">↻</button>
+                        <!-- 手动收起按钮 -->
+                        <button onclick="collapseHeader()" class="text-xs text-gray-400 hover:text-white px-1" title="收起">▲</button>
                     </div>
                 </div>
 
@@ -237,9 +248,9 @@
                 </div>
             </div>
 
-            <!-- 吸附态把手 (平时隐藏，吸附时显示) -->
-            <div class="header-handle absolute bottom-0 left-0 w-full h-4 flex justify-center items-center opacity-0 transition-opacity duration-300 cursor-pointer" onclick="expandHeader()">
-                <div class="w-12 h-1 bg-gray-600 rounded-full"></div>
+            <!-- 吸附态把手 (点击展开) -->
+            <div class="header-handle absolute inset-0 flex justify-center items-center opacity-0 transition-opacity duration-300" onclick="expandHeader()">
+                <span class="text-gray-500 hover:text-white text-lg font-bold leading-none mt-1">▼</span>
             </div>
         </div>
 
@@ -393,7 +404,6 @@
             let targetPath = null;
 
             try {
-                // 使用原生 fetch 以获取 stream，手动添加 header
                 const response = await fetch(url, {
                     method: 'POST',
                     headers: {
@@ -403,10 +413,7 @@
                     body: JSON.stringify(body)
                 });
 
-                if (response.status === 401) {
-                    doLogout();
-                    return;
-                }
+                if (response.status === 401) { doLogout(); return; }
 
                 const reader = response.body.getReader();
                 const decoder = new TextDecoder();
@@ -456,7 +463,23 @@
             await handleStreamRequest('/api/outline', req, "🧠 大纲生成中", true);
         }
 
+        // ================= 续写逻辑 =================
         async function generate() {
+            // 1. 自动采纳：检查是否有未采纳的卡片
+            const pendingBtns = document.querySelectorAll('.float-actions button:last-child');
+            for (const btn of pendingBtns) {
+                if (btn.innerText.includes('采纳') && !btn.disabled) {
+                    const action = btn.getAttribute('onclick');
+                    if (action) {
+                        try {
+                            btn.innerText = "自动采纳中...";
+                            await eval(action);
+                        } catch (e) { console.error("自动采纳失败", e); }
+                    }
+                }
+            }
+
+            // 2. 开始新一轮生成
             const input = document.getElementById('promptInput');
             const userPrompt = input.value.trim();
             input.value = '';
@@ -469,15 +492,12 @@
         function collapseHeader() {
             const header = document.getElementById('topHeader');
             header.classList.add('header-collapsed');
-            header.classList.remove('p-3');
-            header.classList.add('p-0', 'h-4');
+            // 不需要移除 p-3，因为 CSS 中用 !important 覆盖了 padding
         }
 
         function expandHeader() {
             const header = document.getElementById('topHeader');
-            header.classList.remove('header-collapsed', 'p-0', 'h-4');
-            header.classList.add('p-3');
-            // 清除之前的定时器
+            header.classList.remove('header-collapsed');
             if(autoCollapseTimer) clearTimeout(autoCollapseTimer);
         }
 
@@ -503,13 +523,23 @@
             }
         }
 
+        function copyNovelContent() {
+            const text = document.getElementById('novelPreview').innerText;
+            navigator.clipboard.writeText(text).then(() => {
+                const btn = document.querySelector('button[title="复制全文"]');
+                const originalHTML = btn.innerHTML;
+                btn.innerHTML = `<span class="text-green-400 font-bold">✔</span> 已复制`;
+                setTimeout(() => btn.innerHTML = originalHTML, 2000);
+            }).catch(err => alert("复制失败"));
+        }
+
         function createResultCard(title) {
             const chatArea = document.getElementById('chatArea');
             const cardId = 'card-' + Date.now();
             const cardHtml = `
-                <div id="${cardId}" class="glass rounded-xl p-0 overflow-hidden border border-blue-500/30 relative mb-4">
-                    <div class="bg-blue-900/20 px-4 py-2 border-b border-white/5 flex justify-between items-center">
-                        <span class="text-xs text-blue-300 font-bold">${title}</span>
+                <div id="${cardId}" class="glass rounded-xl p-0 overflow-hidden border border-white/10 relative mb-4">
+                    <div class="bg-white/5 px-4 py-2 border-b border-white/5 flex justify-between items-center">
+                        <span class="text-xs text-gray-400 font-bold tracking-wider uppercase">${title}</span>
                     </div>
                     <div class="p-4 pb-12 prose prose-invert prose-sm text-gray-300 leading-relaxed font-serif max-w-none">
                         <div class="content-text min-h-[40px]"></div>
@@ -526,18 +556,19 @@
         function enableCardActions(cardId, targetPath = null) {
             const card = document.getElementById(cardId);
             if (!card) return;
+
             const btnContainer = card.querySelector('.float-actions');
             const saveAction = targetPath
                 ? `saveOutline('${cardId}', '${targetPath.replace(/\\/g, '\\\\')}')`
                 : `saveText('${cardId}')`;
 
             btnContainer.innerHTML = `
-                <button onclick="removeCard('${cardId}')" class="text-xs bg-gray-700/80 backdrop-blur text-gray-400 hover:text-red-400 hover:bg-gray-700 px-3 py-1.5 rounded-lg border border-gray-600/50">丢弃</button>
-                <button onclick="${saveAction}" class="text-xs bg-blue-600/80 backdrop-blur text-white px-3 py-1.5 rounded-lg hover:bg-blue-500 border border-blue-500/50 shadow-lg">采纳并写入</button>
+                <button onclick="removeCard('${cardId}')" class="text-xs bg-black/60 backdrop-blur text-gray-500 hover:text-gray-300 hover:bg-gray-800 px-3 py-1.5 rounded-lg border border-white/10 transition-colors">丢弃</button>
+                <button onclick="${saveAction}" class="text-xs bg-gray-200/90 backdrop-blur text-gray-900 px-3 py-1.5 rounded-lg hover:bg-gray-300 border border-white/10 shadow-lg font-medium transition-colors">采纳并写入</button>
             `;
             btnContainer.classList.remove('opacity-0');
-            card.querySelector('.text-blue-300').className = "text-xs text-green-400 font-bold";
-            card.querySelector('.text-green-400').innerText = "✨ 生成完成";
+            card.querySelector('.text-gray-400').className = "text-xs text-gray-500 font-bold tracking-wider uppercase";
+            card.querySelector('.text-gray-500').innerText = "✨ 生成完成";
         }
 
         // ================= 保存逻辑 =================
